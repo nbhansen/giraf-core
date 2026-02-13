@@ -1,4 +1,5 @@
 """Pydantic schemas for the users app."""
+
 from ninja import Schema
 
 
@@ -10,6 +11,17 @@ class RegisterIn(Schema):
     last_name: str = ""
 
 
+class UserUpdateIn(Schema):
+    first_name: str | None = None
+    last_name: str | None = None
+    email: str | None = None
+
+
+class PasswordChangeIn(Schema):
+    old_password: str
+    new_password: str
+
+
 class UserOut(Schema):
     id: int
     username: str
@@ -18,3 +30,4 @@ class UserOut(Schema):
     last_name: str
     display_name: str
     is_active: bool
+    profile_picture: str | None

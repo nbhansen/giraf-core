@@ -2,6 +2,7 @@
 
 Using factory_boy for consistent, readable test data creation.
 """
+
 import factory
 from django.contrib.auth import get_user_model
 

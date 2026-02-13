@@ -4,6 +4,7 @@ These tests define the expected behavior of the GIRAF User model.
 Written BEFORE implementation — tests should FAIL initially, then pass
 after the model is properly implemented.
 """
+
 import pytest
 from django.contrib.auth import get_user_model
 
@@ -87,12 +88,8 @@ class TestUserUniqueness:
     def test_duplicate_email_allowed(self):
         """Multiple users can share an email (or have blank email).
         This matches the current weekplanner behavior."""
-        User.objects.create_user(
-            username="user1", email="shared@example.com", password="pass123"
-        )
-        user2 = User.objects.create_user(
-            username="user2", email="shared@example.com", password="pass456"
-        )
+        User.objects.create_user(username="user1", email="shared@example.com", password="pass123")
+        user2 = User.objects.create_user(username="user2", email="shared@example.com", password="pass456")
         assert user2.pk is not None
 
 

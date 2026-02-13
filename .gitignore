@@ -6,6 +6,7 @@ dist/
 *.egg
 db.sqlite3
 staticfiles/
+media/
 .env
 .venv/
 *.swp

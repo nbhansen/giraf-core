@@ -4,6 +4,7 @@ Verifies that when a user logs in, their access token contains org_roles
 as a dict mapping org_id → role string.
 Written BEFORE implementation (TDD red phase).
 """
+
 import pytest
 from django.test import Client
 from ninja_jwt.tokens import AccessToken

@@ -3,7 +3,9 @@
 Extends Django's AbstractUser with GIRAF-specific fields and behavior.
 Users are caretakers, teachers, and staff at institutions serving kids with autism.
 """
+
 from django.contrib.auth.models import AbstractUser
+from django.db import models
 
 
 class User(AbstractUser):
@@ -12,6 +14,13 @@ class User(AbstractUser):
     # AbstractUser already provides:
     #   username, first_name, last_name, email, password,
     #   is_staff, is_active, is_superuser, date_joined
+
+    profile_picture = models.ImageField(
+        upload_to="profile_pictures/%Y/%m/%d/",
+        null=True,
+        blank=True,
+        help_text="User profile picture (max 5MB, JPEG/PNG/WebP)",
+    )
 
     class Meta:
         db_table = "users"

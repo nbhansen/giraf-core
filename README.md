@@ -112,13 +112,13 @@ All endpoints are prefixed with `/api/v1`. Unless noted otherwise, all endpoints
 
 ### Authentication
 
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| `POST` | `/auth/register` | None | Register a new user |
-| `POST` | `/token/pair` | None | Login — returns access + refresh tokens |
-| `POST` | `/token/refresh` | None | Refresh an expired access token |
-| `POST` | `/token/verify` | None | Verify a token is valid |
-| `GET` | `/users/me` | JWT | Get current user profile |
+| Method | Endpoint         | Auth | Description                             |
+| ------ | ---------------- | ---- | --------------------------------------- |
+| `POST` | `/auth/register` | None | Register a new user                     |
+| `POST` | `/token/pair`    | None | Login — returns access + refresh tokens |
+| `POST` | `/token/refresh` | None | Refresh an expired access token         |
+| `POST` | `/token/verify`  | None | Verify a token is valid                 |
+| `GET`  | `/users/me`      | JWT  | Get current user profile                |
 
 #### Register
 
@@ -168,14 +168,14 @@ The `org_roles` claim is also embedded inside the JWT access token payload itsel
 
 ### Organizations
 
-| Method | Endpoint | Min Role | Description |
-|--------|----------|----------|-------------|
-| `POST` | `/organizations` | JWT | Create org (creator becomes owner) |
-| `GET` | `/organizations` | JWT | List user's organizations |
-| `GET` | `/organizations/{org_id}` | member | Get org detail |
-| `GET` | `/organizations/{org_id}/members` | member | List members |
-| `PATCH` | `/organizations/{org_id}/members/{user_id}` | owner | Update member role |
-| `DELETE` | `/organizations/{org_id}/members/{user_id}` | admin | Remove member |
+| Method   | Endpoint                                    | Min Role | Description                        |
+| -------- | ------------------------------------------- | -------- | ---------------------------------- |
+| `POST`   | `/organizations`                            | JWT      | Create org (creator becomes owner) |
+| `GET`    | `/organizations`                            | JWT      | List user's organizations          |
+| `GET`    | `/organizations/{org_id}`                   | member   | Get org detail                     |
+| `GET`    | `/organizations/{org_id}/members`           | member   | List members                       |
+| `PATCH`  | `/organizations/{org_id}/members/{user_id}` | owner    | Update member role                 |
+| `DELETE` | `/organizations/{org_id}/members/{user_id}` | admin    | Remove member                      |
 
 ---
 
@@ -183,13 +183,13 @@ The `org_roles` claim is also embedded inside the JWT access token payload itsel
 
 Citizens are kids with autism, belonging to an organization.
 
-| Method | Endpoint | Min Role | Description |
-|--------|----------|----------|-------------|
-| `POST` | `/organizations/{org_id}/citizens` | member | Create citizen |
-| `GET` | `/organizations/{org_id}/citizens` | member | List citizens in org |
-| `GET` | `/citizens/{citizen_id}` | member | Get citizen detail |
-| `PATCH` | `/citizens/{citizen_id}` | member | Update citizen |
-| `DELETE` | `/citizens/{citizen_id}` | admin | Delete citizen |
+| Method   | Endpoint                           | Min Role | Description          |
+| -------- | ---------------------------------- | -------- | -------------------- |
+| `POST`   | `/organizations/{org_id}/citizens` | member   | Create citizen       |
+| `GET`    | `/organizations/{org_id}/citizens` | member   | List citizens in org |
+| `GET`    | `/citizens/{citizen_id}`           | member   | Get citizen detail   |
+| `PATCH`  | `/citizens/{citizen_id}`           | member   | Update citizen       |
+| `DELETE` | `/citizens/{citizen_id}`           | admin    | Delete citizen       |
 
 ---
 
@@ -197,13 +197,13 @@ Citizens are kids with autism, belonging to an organization.
 
 Grades group citizens within an organization.
 
-| Method | Endpoint | Min Role | Description |
-|--------|----------|----------|-------------|
-| `POST` | `/organizations/{org_id}/grades` | admin | Create grade |
-| `GET` | `/organizations/{org_id}/grades` | member | List grades in org |
-| `PATCH` | `/grades/{grade_id}` | admin | Update grade |
-| `DELETE` | `/grades/{grade_id}` | admin | Delete grade |
-| `POST` | `/grades/{grade_id}/citizens` | admin | Assign citizens to grade |
+| Method   | Endpoint                         | Min Role | Description              |
+| -------- | -------------------------------- | -------- | ------------------------ |
+| `POST`   | `/organizations/{org_id}/grades` | admin    | Create grade             |
+| `GET`    | `/organizations/{org_id}/grades` | member   | List grades in org       |
+| `PATCH`  | `/grades/{grade_id}`             | admin    | Update grade             |
+| `DELETE` | `/grades/{grade_id}`             | admin    | Delete grade             |
+| `POST`   | `/grades/{grade_id}/citizens`    | admin    | Assign citizens to grade |
 
 ---
 
@@ -211,12 +211,12 @@ Grades group citizens within an organization.
 
 Visual aids used across the platform. Pictograms can be **global** (no org) or **org-specific**.
 
-| Method | Endpoint | Min Role | Description |
-|--------|----------|----------|-------------|
-| `POST` | `/pictograms` | admin (if org-scoped) | Create pictogram |
-| `GET` | `/pictograms?organization_id={id}` | JWT | List pictograms (global + org if specified) |
-| `GET` | `/pictograms/{pictogram_id}` | JWT | Get pictogram |
-| `DELETE` | `/pictograms/{pictogram_id}` | admin (if org-scoped) | Delete pictogram |
+| Method   | Endpoint                           | Min Role              | Description                                 |
+| -------- | ---------------------------------- | --------------------- | ------------------------------------------- |
+| `POST`   | `/pictograms`                      | admin (if org-scoped) | Create pictogram                            |
+| `GET`    | `/pictograms?organization_id={id}` | JWT                   | List pictograms (global + org if specified) |
+| `GET`    | `/pictograms/{pictogram_id}`       | JWT                   | Get pictogram                               |
+| `DELETE` | `/pictograms/{pictogram_id}`       | admin (if org-scoped) | Delete pictogram                            |
 
 ---
 
@@ -224,16 +224,17 @@ Visual aids used across the platform. Pictograms can be **global** (no org) or *
 
 Invitations let org admins invite users by email.
 
-| Method | Endpoint | Min Role | Description |
-|--------|----------|----------|-------------|
-| `POST` | `/organizations/{org_id}/invitations` | admin | Send invitation (by receiver email) |
-| `GET` | `/organizations/{org_id}/invitations` | admin | List pending invitations for org |
-| `DELETE` | `/organizations/{org_id}/invitations/{id}` | admin | Revoke/delete invitation |
-| `GET` | `/invitations/received` | JWT (receiver) | List my pending invitations |
-| `POST` | `/invitations/{id}/accept` | JWT (receiver) | Accept — creates membership |
-| `POST` | `/invitations/{id}/reject` | JWT (receiver) | Reject invitation |
+| Method   | Endpoint                                   | Min Role       | Description                         |
+| -------- | ------------------------------------------ | -------------- | ----------------------------------- |
+| `POST`   | `/organizations/{org_id}/invitations`      | admin          | Send invitation (by receiver email) |
+| `GET`    | `/organizations/{org_id}/invitations`      | admin          | List pending invitations for org    |
+| `DELETE` | `/organizations/{org_id}/invitations/{id}` | admin          | Revoke/delete invitation            |
+| `GET`    | `/invitations/received`                    | JWT (receiver) | List my pending invitations         |
+| `POST`   | `/invitations/{id}/accept`                 | JWT (receiver) | Accept — creates membership         |
+| `POST`   | `/invitations/{id}/reject`                 | JWT (receiver) | Reject invitation                   |
 
 Guards:
+
 - Cannot invite a user who is already a member → `409`
 - Cannot create duplicate pending invitation → `409`
 - Cannot invite a nonexistent email → `404`
@@ -245,27 +246,27 @@ Guards:
 
 Roles are per-organization via the `Membership` model:
 
-| Role | Can do |
-|------|--------|
-| **member** | Read org data, manage citizens |
-| **admin** | + invite users, manage grades/pictograms, remove members |
-| **owner** | + change member roles |
+| Role       | Can do                                                   |
+| ---------- | -------------------------------------------------------- |
+| **member** | Read org data, manage citizens                           |
+| **admin**  | + invite users, manage grades/pictograms, remove members |
+| **owner**  | + change member roles                                    |
 
 Roles follow a hierarchy: `owner > admin > member`. A check for `min_role=admin` passes for both admins and owners.
 
 ## Environment Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `DJANGO_SETTINGS_MODULE` | `config.settings.dev` | Settings module |
-| `DJANGO_SECRET_KEY` | `insecure-dev-key...` | Django secret key |
-| `JWT_SECRET` | Same as `SECRET_KEY` | JWT signing key |
-| `POSTGRES_DB` | `giraf_core` | Database name |
-| `POSTGRES_USER` | `giraf` | Database user |
-| `POSTGRES_PASSWORD` | `giraf` | Database password |
-| `POSTGRES_HOST` | `localhost` | Database host |
-| `POSTGRES_PORT` | `5432` | Database port |
-| `CORS_ALLOWED_ORIGINS` | (empty) | Comma-separated allowed origins |
+| Variable                 | Default               | Description                     |
+| ------------------------ | --------------------- | ------------------------------- |
+| `DJANGO_SETTINGS_MODULE` | `config.settings.dev` | Settings module                 |
+| `DJANGO_SECRET_KEY`      | `insecure-dev-key...` | Django secret key               |
+| `JWT_SECRET`             | Same as `SECRET_KEY`  | JWT signing key                 |
+| `POSTGRES_DB`            | `giraf_core`          | Database name                   |
+| `POSTGRES_USER`          | `giraf`               | Database user                   |
+| `POSTGRES_PASSWORD`      | `giraf`               | Database password               |
+| `POSTGRES_HOST`          | `localhost`           | Database host                   |
+| `POSTGRES_PORT`          | `5432`                | Database port                   |
+| `CORS_ALLOWED_ORIGINS`   | (empty)               | Comma-separated allowed origins |
 
 ## Testing
 
@@ -285,4 +286,3 @@ uv run pytest --cov=apps --cov=core
 ```
 
 Tests use SQLite in-memory for speed (configured in `config/settings/test.py`).
-
