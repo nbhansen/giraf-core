@@ -1,0 +1,33 @@
+services:
+  core-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: giraf_core
+      POSTGRES_USER: giraf
+      POSTGRES_PASSWORD: giraf
+    ports:
+      - "5432:5432"
+    volumes:
+      - core-db-data:/var/lib/postgresql/data
+
+  core-api:
+    build: .
+    ports:
+      - "8000:8000"
+    depends_on:
+      - core-db
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.dev
+      POSTGRES_DB: giraf_core
+      POSTGRES_USER: giraf
+      POSTGRES_PASSWORD: giraf
+      POSTGRES_HOST: core-db
+      POSTGRES_PORT: "5432"
+      DJANGO_SECRET_KEY: dev-secret-key-change-me
+      JWT_SECRET: d4a8e2b0f1c3e4d5a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5
+    command: >
+      sh -c "python manage.py migrate &&
+             python manage.py runserver 0.0.0.0:8000"
+
+volumes:
+  core-db-data:
