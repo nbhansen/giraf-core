@@ -110,15 +110,19 @@ core/
 
 All endpoints are prefixed with `/api/v1`. Unless noted otherwise, all endpoints require a valid JWT Bearer token.
 
-### Authentication
+### Authentication & User Management
 
-| Method | Endpoint         | Auth | Description                             |
-| ------ | ---------------- | ---- | --------------------------------------- |
-| `POST` | `/auth/register` | None | Register a new user                     |
-| `POST` | `/token/pair`    | None | Login — returns access + refresh tokens |
-| `POST` | `/token/refresh` | None | Refresh an expired access token         |
-| `POST` | `/token/verify`  | None | Verify a token is valid                 |
-| `GET`  | `/users/me`      | JWT  | Get current user profile                |
+| Method   | Endpoint                    | Auth | Description                             |
+| -------- | --------------------------- | ---- | --------------------------------------- |
+| `POST`   | `/auth/register`            | None | Register a new user                     |
+| `POST`   | `/token/pair`               | None | Login — returns access + refresh tokens |
+| `POST`   | `/token/refresh`            | None | Refresh an expired access token         |
+| `POST`   | `/token/verify`             | None | Verify a token is valid                 |
+| `GET`    | `/users/me`                 | JWT  | Get current user profile                |
+| `PUT`    | `/users/me`                 | JWT  | Update user profile                     |
+| `PUT`    | `/users/me/password`        | JWT  | Change password                         |
+| `DELETE` | `/users/me`                 | JWT  | Delete account                          |
+| `POST`   | `/users/me/profile-picture` | JWT  | Upload profile picture                  |
 
 #### Register
 
@@ -163,6 +167,58 @@ Returns:
 ```
 
 The `org_roles` claim is also embedded inside the JWT access token payload itself, so app backends can decode the token to determine user roles without calling the Core API.
+
+#### Update Profile
+
+```
+PUT /api/v1/users/me
+Authorization: Bearer <access_token>
+```
+
+```json
+{
+  "first_name": "Alice",
+  "last_name": "Smith",
+  "email": "newemail@example.com"
+}
+```
+
+All fields are optional. Only provided fields will be updated. Returns `200` with updated user data, or `422` for validation errors.
+
+#### Change Password
+
+```
+PUT /api/v1/users/me/password
+Authorization: Bearer <access_token>
+```
+
+```json
+{
+  "old_password": "OldPass123!",
+  "new_password": "NewStr0ngPass!"
+}
+```
+
+Returns `200` on success, `400` if old password is incorrect, `422` if new password doesn't meet strength requirements.
+
+#### Delete Account
+
+```
+DELETE /api/v1/users/me
+Authorization: Bearer <access_token>
+```
+
+Permanently deletes the user account. Returns `204` on success. This action cannot be undone.
+
+#### Upload Profile Picture
+
+```
+POST /api/v1/users/me/profile-picture
+Authorization: Bearer <access_token>
+Content-Type: multipart/form-data
+```
+
+Send file as `file` field in multipart form data. Accepts JPEG, PNG, and WebP images up to 5MB. Returns `200` with updated user data including `profile_picture` URL, or `422` for invalid file type/size.
 
 ---
 
