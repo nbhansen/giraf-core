@@ -1,4 +1,5 @@
 """Test settings — SQLite, fast, no external dependencies."""
+
 from datetime import timedelta
 
 from config.settings.base import *  # noqa: F401, F403

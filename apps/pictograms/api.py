@@ -1,4 +1,5 @@
 """Pictogram API endpoints."""
+
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from ninja import File, Form, Router, Schema
@@ -54,9 +55,7 @@ def create_pictogram(request, payload: PictogramCreateIn):
 def list_pictograms(request, organization_id: int | None = None):
     """List pictograms. Returns global + org-specific if org_id provided."""
     if organization_id:
-        return Pictogram.objects.filter(
-            Q(organization_id=organization_id) | Q(organization__isnull=True)
-        )
+        return Pictogram.objects.filter(Q(organization_id=organization_id) | Q(organization__isnull=True))
     return Pictogram.objects.filter(organization__isnull=True)
 
 

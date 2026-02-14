@@ -1,8 +1,7 @@
 """Pydantic schemas for the users app."""
 
-from pydantic import EmailStr
-
 from ninja import Schema
+from pydantic import EmailStr
 
 
 class RegisterIn(Schema):

@@ -1,7 +1,7 @@
 """Invitation schemas."""
-from pydantic import EmailStr
 
 from ninja import Field, Schema
+from pydantic import EmailStr
 
 
 class InvitationCreateIn(Schema):

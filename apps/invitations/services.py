@@ -1,4 +1,5 @@
 """Invitation business logic."""
+
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError, transaction
 
@@ -24,9 +25,7 @@ class InvitationService:
         except User.DoesNotExist:
             raise ReceiverNotFoundError("No user with that email.")
 
-        if Membership.objects.filter(
-            user=receiver, organization=organization
-        ).exists():
+        if Membership.objects.filter(user=receiver, organization=organization).exists():
             raise AlreadyMemberError("User is already a member.")
 
         try:
@@ -42,9 +41,9 @@ class InvitationService:
 
     @staticmethod
     def list_received(user):
-        return Invitation.objects.filter(
-            receiver=user, status=InvitationStatus.PENDING
-        ).select_related("organization", "sender", "receiver")
+        return Invitation.objects.filter(receiver=user, status=InvitationStatus.PENDING).select_related(
+            "organization", "sender", "receiver"
+        )
 
     @staticmethod
     def list_for_org(organization_id: int):

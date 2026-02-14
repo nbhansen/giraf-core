@@ -1,4 +1,5 @@
 """Citizen API endpoints."""
+
 from django.shortcuts import get_object_or_404
 from ninja import Router
 from ninja.errors import HttpError
@@ -30,9 +31,7 @@ def _check_role_or_raise(user, org_id: int, min_role: str) -> None:
 def create_citizen(request, org_id: int, payload: CitizenCreateIn):
     """Create a citizen in an organization. Requires membership."""
     _check_role_or_raise(request.auth, org_id, OrgRole.MEMBER)
-    citizen = CitizenService.create_citizen(
-        org_id=org_id, first_name=payload.first_name, last_name=payload.last_name
-    )
+    citizen = CitizenService.create_citizen(org_id=org_id, first_name=payload.first_name, last_name=payload.last_name)
     return 201, citizen
 
 
@@ -69,9 +68,7 @@ def update_citizen(request, citizen_id: int, payload: CitizenUpdateIn):
     """Update a citizen. Requires membership in the citizen's org."""
     citizen = get_object_or_404(Citizen, id=citizen_id)
     _check_role_or_raise(request.auth, citizen.organization_id, OrgRole.MEMBER)
-    updated = CitizenService.update_citizen(
-        citizen, first_name=payload.first_name, last_name=payload.last_name
-    )
+    updated = CitizenService.update_citizen(citizen, first_name=payload.first_name, last_name=payload.last_name)
     return 200, updated
 
 

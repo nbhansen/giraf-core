@@ -2,6 +2,7 @@
 
 Provides common factories and helpers used across all test modules.
 """
+
 import pytest
 from django.test import Client
 

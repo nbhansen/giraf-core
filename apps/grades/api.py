@@ -1,4 +1,5 @@
 """Grade API endpoints."""
+
 from django.shortcuts import get_object_or_404
 from ninja import Router
 from ninja.errors import HttpError
@@ -22,9 +23,7 @@ def _check_role_or_raise(user, org_id: int, min_role: str) -> None:
 
 def _validate_citizens_belong_to_org(citizen_ids: list[int], org_id: int) -> None:
     """Verify all citizen IDs belong to the given organization."""
-    valid = set(
-        Citizen.objects.filter(id__in=citizen_ids, organization_id=org_id).values_list("id", flat=True)
-    )
+    valid = set(Citizen.objects.filter(id__in=citizen_ids, organization_id=org_id).values_list("id", flat=True))
     invalid = set(citizen_ids) - valid
     if invalid:
         raise HttpError(400, f"Citizens do not belong to this organization: {sorted(invalid)}")

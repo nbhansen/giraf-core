@@ -2,12 +2,12 @@
 
 Grades are class groupings of citizens within an organization.
 """
+
 import pytest
 
 from apps.citizens.models import Citizen
 from apps.grades.models import Grade
-from apps.organizations.models import Membership, Organization, OrgRole
-from apps.users.tests.factories import UserFactory
+from apps.organizations.models import Organization
 from conftest import auth_header
 
 
@@ -71,9 +71,7 @@ class TestGradeAPI:
         for i in range(5):
             Grade.objects.create(name=f"Class {i}", organization=org)
         headers = auth_header(client, "member")
-        response = client.get(
-            f"/api/v1/organizations/{org.id}/grades?limit=2&offset=0", **headers
-        )
+        response = client.get(f"/api/v1/organizations/{org.id}/grades?limit=2&offset=0", **headers)
         assert response.status_code == 200
         body = response.json()
         assert len(body["items"]) == 2
@@ -128,9 +126,7 @@ class TestCrossOrgCitizenAssignment:
         """Cannot assign citizens from a different organization to a grade."""
         other_org = Organization.objects.create(name="Other School")
         grade = Grade.objects.create(name="Class 3A", organization=org)
-        foreign_citizen = Citizen.objects.create(
-            first_name="Eve", last_name="F", organization=other_org
-        )
+        foreign_citizen = Citizen.objects.create(first_name="Eve", last_name="F", organization=other_org)
 
         headers = auth_header(client, "owner")
         response = client.post(
@@ -146,9 +142,7 @@ class TestCrossOrgCitizenAssignment:
         """Cannot add citizens from a different org via the add endpoint."""
         other_org = Organization.objects.create(name="Other School")
         grade = Grade.objects.create(name="Class 3A", organization=org)
-        foreign_citizen = Citizen.objects.create(
-            first_name="Eve", last_name="F", organization=other_org
-        )
+        foreign_citizen = Citizen.objects.create(first_name="Eve", last_name="F", organization=other_org)
 
         headers = auth_header(client, "owner")
         response = client.post(
@@ -164,12 +158,8 @@ class TestCrossOrgCitizenAssignment:
         """If any citizen is from another org, the entire request is rejected."""
         other_org = Organization.objects.create(name="Other School")
         grade = Grade.objects.create(name="Class 3A", organization=org)
-        valid_citizen = Citizen.objects.create(
-            first_name="Alice", last_name="A", organization=org
-        )
-        foreign_citizen = Citizen.objects.create(
-            first_name="Eve", last_name="F", organization=other_org
-        )
+        valid_citizen = Citizen.objects.create(first_name="Alice", last_name="A", organization=org)
+        foreign_citizen = Citizen.objects.create(first_name="Eve", last_name="F", organization=other_org)
 
         headers = auth_header(client, "owner")
         response = client.post(

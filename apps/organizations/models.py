@@ -3,6 +3,7 @@
 Organizations represent schools/institutions. Membership is the explicit
 through-table linking users to organizations with role-based access.
 """
+
 from django.conf import settings
 from django.db import models
 

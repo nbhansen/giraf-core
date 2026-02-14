@@ -5,6 +5,7 @@ Two routers:
 - receiver_router: receiver-scoped endpoints (list received, accept, reject)
                    -> mounted at /invitations
 """
+
 from django.shortcuts import get_object_or_404
 from ninja import Router
 from ninja.errors import HttpError
@@ -50,9 +51,7 @@ def send_invitation(request, org_id: int, payload: InvitationCreateIn):
     except DuplicateInvitationError:
         raise HttpError(409, "Pending invitation already exists.")
 
-    inv = Invitation.objects.select_related(
-        "organization", "sender", "receiver"
-    ).get(id=result.id)
+    inv = Invitation.objects.select_related("organization", "sender", "receiver").get(id=result.id)
     return 201, inv
 
 

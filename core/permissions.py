@@ -3,6 +3,7 @@
 Reusable helpers for checking organization membership and role-based access.
 All role checks use the hierarchy: OWNER > ADMIN > MEMBER.
 """
+
 from apps.organizations.models import Membership, OrgRole
 
 ROLE_HIERARCHY: dict[str, int] = {
@@ -15,9 +16,7 @@ ROLE_HIERARCHY: dict[str, int] = {
 def get_membership_or_none(user, org_id: int) -> Membership | None:
     """Get the user's membership for an organization, or None if not a member."""
     try:
-        return Membership.objects.select_related("organization").get(
-            user=user, organization_id=org_id
-        )
+        return Membership.objects.select_related("organization").get(user=user, organization_id=org_id)
     except Membership.DoesNotExist:
         return None
 
