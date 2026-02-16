@@ -1,8 +1,6 @@
 """User API endpoints."""
 
-from django.core.exceptions import ValidationError
 from ninja import File, Router
-from ninja.errors import HttpError
 from ninja.files import UploadedFile
 
 from apps.users.schemas import PasswordChangeIn, RegisterIn, UserOut, UserUpdateIn
@@ -21,18 +19,13 @@ router = Router(tags=["users"])
 )
 def register(request, payload: RegisterIn):
     """Register a new user account."""
-    try:
-        user = UserService.register(
-            username=payload.username,
-            password=payload.password,
-            email=payload.email,
-            first_name=payload.first_name,
-            last_name=payload.last_name,
-        )
-    except ValueError as e:
-        raise HttpError(409, str(e))
-    except ValidationError as e:
-        raise HttpError(422, ", ".join(e.messages))
+    user = UserService.register(
+        username=payload.username,
+        password=payload.password,
+        email=payload.email,
+        first_name=payload.first_name,
+        last_name=payload.last_name,
+    )
     return 201, user
 
 
@@ -49,15 +42,10 @@ def update_profile(request, payload: UserUpdateIn):
     return 200, updated
 
 
-@router.put("/users/me/password", response={200: UserOut, 400: ErrorOut, 422: ErrorOut})
+@router.put("/users/me/password", response={200: UserOut, 422: ErrorOut})
 def change_password(request, payload: PasswordChangeIn):
     """Change user's password."""
-    try:
-        UserService.change_password(request.auth, payload.old_password, payload.new_password)
-    except ValueError as e:
-        raise HttpError(400, str(e))
-    except ValidationError as e:
-        raise HttpError(422, ", ".join(e.messages))
+    UserService.change_password(request.auth, payload.old_password, payload.new_password)
     return 200, request.auth
 
 
@@ -71,9 +59,5 @@ def delete_account(request):
 @router.post("/users/me/profile-picture", response={200: UserOut, 422: ErrorOut})
 def upload_profile_picture(request, file: File[UploadedFile]):
     """Upload a profile picture."""
-    try:
-        UserService.upload_profile_picture(request.auth, file)
-    except ValidationError as e:
-        msg = e.messages if hasattr(e, "messages") else [str(e)]
-        raise HttpError(422, ", ".join(msg))
+    UserService.upload_profile_picture(request.auth, file)
     return 200, request.auth

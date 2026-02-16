@@ -1,10 +1,13 @@
 """Business logic for citizen operations."""
 
+from django.db import transaction
+
 from apps.citizens.models import Citizen
 
 
 class CitizenService:
     @staticmethod
+    @transaction.atomic
     def create_citizen(*, org_id: int, first_name: str, last_name: str) -> Citizen:
         return Citizen.objects.create(
             organization_id=org_id,
@@ -21,6 +24,7 @@ class CitizenService:
         return Citizen.objects.select_related("organization").get(id=citizen_id)
 
     @staticmethod
+    @transaction.atomic
     def update_citizen(citizen: Citizen, **fields) -> Citizen:
         for key, value in fields.items():
             if value is not None:
@@ -29,5 +33,6 @@ class CitizenService:
         return citizen
 
     @staticmethod
+    @transaction.atomic
     def delete_citizen(citizen: Citizen) -> None:
         citizen.delete()

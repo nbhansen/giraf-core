@@ -12,6 +12,7 @@ User = get_user_model()
 
 class InvitationService:
     @staticmethod
+    @transaction.atomic
     def send(*, organization, sender, receiver_email: str) -> Invitation:
         """Create an invitation.
 

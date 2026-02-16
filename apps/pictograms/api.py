@@ -1,7 +1,5 @@
 """Pictogram API endpoints."""
 
-from django.core.exceptions import ValidationError
-from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from ninja import File, Form, Router, Schema
 from ninja.errors import HttpError
@@ -10,6 +8,7 @@ from ninja.pagination import LimitOffsetPagination, paginate
 
 from apps.organizations.models import OrgRole
 from apps.pictograms.models import Pictogram
+from apps.pictograms.services import PictogramService
 from core.permissions import check_role
 from core.schemas import ErrorOut
 
@@ -43,14 +42,12 @@ def create_pictogram(request, payload: PictogramCreateIn):
         allowed, msg = check_role(request.auth, payload.organization_id, min_role=OrgRole.ADMIN)
         if not allowed:
             raise HttpError(403, msg)
-    try:
-        pictogram = Pictogram.objects.create(
-            name=payload.name,
-            image_url=payload.image_url,
-            organization_id=payload.organization_id,
-        )
-    except ValidationError as e:
-        raise HttpError(422, " ".join(e.messages))
+    
+    pictogram = PictogramService.create_pictogram(
+        name=payload.name,
+        image_url=payload.image_url,
+        organization_id=payload.organization_id,
+    )
     return 201, pictogram
 
 
@@ -58,9 +55,7 @@ def create_pictogram(request, payload: PictogramCreateIn):
 @paginate(LimitOffsetPagination)
 def list_pictograms(request, organization_id: int | None = None):
     """List pictograms. Returns global + org-specific if org_id provided."""
-    if organization_id:
-        return Pictogram.objects.filter(Q(organization_id=organization_id) | Q(organization__isnull=True))
-    return Pictogram.objects.filter(organization__isnull=True)
+    return PictogramService.list_pictograms(organization_id)
 
 
 @router.post("/upload", response={201: PictogramOut, 403: ErrorOut})
@@ -75,7 +70,8 @@ def upload_pictogram(
         allowed, msg = check_role(request.auth, organization_id, min_role=OrgRole.ADMIN)
         if not allowed:
             raise HttpError(403, msg)
-    pictogram = Pictogram.objects.create(
+    
+    pictogram = PictogramService.upload_pictogram(
         name=name,
         image=image,
         organization_id=organization_id,
@@ -86,7 +82,8 @@ def upload_pictogram(
 @router.get("/{pictogram_id}", response={200: PictogramOut, 404: ErrorOut})
 def get_pictogram(request, pictogram_id: int):
     """Get a pictogram by ID."""
-    return 200, get_object_or_404(Pictogram, id=pictogram_id)
+    pictogram = get_object_or_404(Pictogram, id=pictogram_id)
+    return 200, pictogram
 
 
 @router.delete("/{pictogram_id}", response={204: None, 403: ErrorOut, 404: ErrorOut})
@@ -97,5 +94,6 @@ def delete_pictogram(request, pictogram_id: int):
         allowed, msg = check_role(request.auth, pictogram.organization_id, min_role=OrgRole.ADMIN)
         if not allowed:
             raise HttpError(403, msg)
-    pictogram.delete()
+    
+    PictogramService.delete_pictogram(pictogram)
     return 204, None

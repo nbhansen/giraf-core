@@ -19,6 +19,13 @@ from apps.invitations.api import receiver_router as invitations_receiver_router
 from apps.organizations.api import router as organizations_router
 from apps.pictograms.api import router as pictograms_router
 from apps.users.api import router as users_router
+from core.exceptions import (
+    BadRequestError,
+    BusinessValidationError,
+    ConflictError,
+    ResourceNotFoundError,
+    ServiceError,
+)
 from core.throttling import LoginRateThrottle
 
 api = NinjaExtraAPI(
@@ -27,6 +34,31 @@ api = NinjaExtraAPI(
     description="Shared domain service for the GIRAF platform.",
     auth=JWTAuth(),
 )
+
+
+@api.exception_handler(BadRequestError)
+def bad_request(request, exc):
+    return api.create_response(request, {"detail": str(exc)}, status=400)
+
+
+@api.exception_handler(ResourceNotFoundError)
+def resource_not_found(request, exc):
+    return api.create_response(request, {"detail": str(exc)}, status=404)
+
+
+@api.exception_handler(ConflictError)
+def conflict(request, exc):
+    return api.create_response(request, {"detail": str(exc)}, status=409)
+
+
+@api.exception_handler(BusinessValidationError)
+def validation_error(request, exc):
+    return api.create_response(request, {"detail": str(exc)}, status=422)
+
+
+@api.exception_handler(ServiceError)
+def service_error(request, exc):
+    return api.create_response(request, {"detail": "An unexpected service error occurred."}, status=500)
 
 
 @api_controller(

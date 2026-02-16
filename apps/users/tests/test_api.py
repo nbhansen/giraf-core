@@ -125,7 +125,7 @@ class TestChangePassword:
             content_type="application/json",
             **headers,
         )
-        assert response.status_code == 400
+        assert response.status_code == 422
         assert "Old password is incorrect" in response.json()["detail"]
 
     def test_change_password_weak_new_password(self, client, user):

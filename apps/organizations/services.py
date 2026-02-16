@@ -1,5 +1,6 @@
 """Business logic for organization operations."""
 
+from django.db import transaction
 from django.shortcuts import get_object_or_404
 
 from apps.organizations.models import Membership, Organization, OrgRole
@@ -8,6 +9,7 @@ from apps.users.models import User
 
 class OrganizationService:
     @staticmethod
+    @transaction.atomic
     def create_organization(*, name: str, creator: User) -> Organization:
         """Create an organization and make the creator the owner."""
         org = Organization.objects.create(name=name)
@@ -34,6 +36,7 @@ class OrganizationService:
         return Membership.objects.filter(organization_id=org_id).select_related("user")
 
     @staticmethod
+    @transaction.atomic
     def update_member_role(org_id: int, target_user_id: int, new_role: str) -> Membership:
         """Update a member's role in an organization."""
         membership = get_object_or_404(Membership, organization_id=org_id, user_id=target_user_id)
@@ -42,6 +45,7 @@ class OrganizationService:
         return membership
 
     @staticmethod
+    @transaction.atomic
     def remove_member(org_id: int, target_user_id: int) -> None:
         """Remove a member from an organization."""
         membership = get_object_or_404(Membership, organization_id=org_id, user_id=target_user_id)

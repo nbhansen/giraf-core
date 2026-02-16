@@ -16,7 +16,7 @@ from apps.invitations.models import Invitation
 from apps.invitations.schemas import InvitationCreateIn, InvitationOut
 from apps.invitations.services import InvitationService
 from apps.organizations.models import Organization
-from core.exceptions import AlreadyMemberError, DuplicateInvitationError, ReceiverNotFoundError
+from core.exceptions import AlreadyMemberError, BadRequestError, ReceiverNotFoundError
 from core.permissions import check_role
 from core.schemas import ErrorOut
 from core.throttling import InvitationSendRateThrottle
@@ -49,9 +49,7 @@ def send_invitation(request, org_id: int, payload: InvitationCreateIn):
             receiver_email=payload.receiver_email,
         )
     except (ReceiverNotFoundError, AlreadyMemberError):
-        raise HttpError(400, "Cannot send invitation.")
-    except DuplicateInvitationError:
-        raise HttpError(409, "Pending invitation already exists.")
+        raise BadRequestError("Cannot send invitation.")
 
     inv = Invitation.objects.select_related("organization", "sender", "receiver").get(id=result.id)
     return 201, inv
