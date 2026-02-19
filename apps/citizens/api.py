@@ -1,11 +1,9 @@
 """Citizen API endpoints."""
 
-from django.shortcuts import get_object_or_404
 from ninja import Router
 from ninja.errors import HttpError
 from ninja.pagination import LimitOffsetPagination, paginate
 
-from apps.citizens.models import Citizen
 from apps.citizens.schemas import CitizenCreateIn, CitizenOut, CitizenUpdateIn
 from apps.citizens.services import CitizenService
 from apps.organizations.models import OrgRole
@@ -55,7 +53,7 @@ def list_citizens(request, org_id: int):
 )
 def get_citizen(request, citizen_id: int):
     """Get citizen detail. Requires membership in the citizen's org."""
-    citizen = get_object_or_404(Citizen, id=citizen_id)
+    citizen = CitizenService.get_citizen(citizen_id)
     _check_role_or_raise(request.auth, citizen.organization_id, OrgRole.MEMBER)
     return 200, citizen
 
@@ -66,9 +64,11 @@ def get_citizen(request, citizen_id: int):
 )
 def update_citizen(request, citizen_id: int, payload: CitizenUpdateIn):
     """Update a citizen. Requires membership in the citizen's org."""
-    citizen = get_object_or_404(Citizen, id=citizen_id)
+    citizen = CitizenService.get_citizen(citizen_id)
     _check_role_or_raise(request.auth, citizen.organization_id, OrgRole.MEMBER)
-    updated = CitizenService.update_citizen(citizen, first_name=payload.first_name, last_name=payload.last_name)
+    updated = CitizenService.update_citizen(
+        citizen_id=citizen_id, first_name=payload.first_name, last_name=payload.last_name
+    )
     return 200, updated
 
 
@@ -78,7 +78,7 @@ def update_citizen(request, citizen_id: int, payload: CitizenUpdateIn):
 )
 def delete_citizen(request, citizen_id: int):
     """Delete a citizen. Requires admin role in the citizen's org."""
-    citizen = get_object_or_404(Citizen, id=citizen_id)
+    citizen = CitizenService.get_citizen(citizen_id)
     _check_role_or_raise(request.auth, citizen.organization_id, OrgRole.ADMIN)
-    CitizenService.delete_citizen(citizen)
+    CitizenService.delete_citizen(citizen_id=citizen_id)
     return 204, None

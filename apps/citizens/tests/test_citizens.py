@@ -5,48 +5,9 @@ Written BEFORE implementation.
 """
 
 import pytest
-from django.test import Client
 
-from apps.organizations.models import Membership, Organization, OrgRole
-from apps.users.tests.factories import UserFactory
-
-
-@pytest.fixture
-def client():
-    return Client()
-
-
-@pytest.fixture
-def owner(db):
-    return UserFactory(username="owner", password="testpass123")
-
-
-@pytest.fixture
-def member(db):
-    return UserFactory(username="member", password="testpass123")
-
-
-@pytest.fixture
-def non_member(db):
-    return UserFactory(username="outsider", password="testpass123")
-
-
-@pytest.fixture
-def org(db, owner, member):
-    org = Organization.objects.create(name="Sunflower School")
-    Membership.objects.create(user=owner, organization=org, role=OrgRole.OWNER)
-    Membership.objects.create(user=member, organization=org, role=OrgRole.MEMBER)
-    return org
-
-
-def auth_header(client, username, password="testpass123"):
-    resp = client.post(
-        "/api/v1/token/pair",
-        data={"username": username, "password": password},
-        content_type="application/json",
-    )
-    return {"HTTP_AUTHORIZATION": f"Bearer {resp.json()['access']}"}
-
+from apps.organizations.models import Organization
+from conftest import auth_header
 
 # ---------------------------------------------------------------------------
 # Model tests
