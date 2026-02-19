@@ -1,13 +1,42 @@
+# Python
 __pycache__/
 *.py[cod]
 *.egg-info/
 dist/
 .eggs/
 *.egg
+
+# Django
 db.sqlite3
 staticfiles/
 media/
+
+# Environment
 .env
 .venv/
+
+# IDE / editor
 *.swp
 *.swo
+.idea/
+.vscode/
+*.iml
+
+# Testing / coverage
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+
+# mypy
+.mypy_cache/
+
+# ruff
+.ruff_cache/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Claude Code / AI tooling
+*.skill
