@@ -1,11 +1,9 @@
 """Grade API endpoints."""
 
-from django.shortcuts import get_object_or_404
 from ninja import Router
 from ninja.errors import HttpError
 from ninja.pagination import LimitOffsetPagination, paginate
 
-from apps.grades.models import Grade
 from apps.grades.schemas import GradeCitizenAssignIn, GradeCreateIn, GradeOut, GradeUpdateIn
 from apps.grades.services import GradeService
 from apps.organizations.models import OrgRole
@@ -49,9 +47,9 @@ def list_grades(request, org_id: int):
 )
 def update_grade(request, grade_id: int, payload: GradeUpdateIn):
     """Update a grade. Requires admin role in the grade's org."""
-    grade = get_object_or_404(Grade, id=grade_id)
+    grade = GradeService.get_grade(grade_id)
     _check_role_or_raise(request.auth, grade.organization_id, OrgRole.ADMIN)
-    updated = GradeService.update_grade(grade, name=payload.name)
+    updated = GradeService.update_grade(grade_id=grade_id, name=payload.name)
     return 200, updated
 
 
@@ -61,9 +59,9 @@ def update_grade(request, grade_id: int, payload: GradeUpdateIn):
 )
 def delete_grade(request, grade_id: int):
     """Delete a grade. Requires admin role in the grade's org."""
-    grade = get_object_or_404(Grade, id=grade_id)
+    grade = GradeService.get_grade(grade_id)
     _check_role_or_raise(request.auth, grade.organization_id, OrgRole.ADMIN)
-    GradeService.delete_grade(grade)
+    GradeService.delete_grade(grade_id=grade_id)
     return 204, None
 
 
@@ -73,7 +71,7 @@ def delete_grade(request, grade_id: int):
 )
 def get_grade(request, grade_id: int):
     """Get a grade by ID. Requires membership in the grade's org."""
-    grade = get_object_or_404(Grade, id=grade_id)
+    grade = GradeService.get_grade(grade_id)
     _check_role_or_raise(request.auth, grade.organization_id, OrgRole.MEMBER)
     return 200, grade
 
@@ -84,9 +82,9 @@ def get_grade(request, grade_id: int):
 )
 def assign_citizens(request, grade_id: int, payload: GradeCitizenAssignIn):
     """Assign citizens to a grade (replaces entire set). Requires admin role."""
-    grade = get_object_or_404(Grade, id=grade_id)
+    grade = GradeService.get_grade(grade_id)
     _check_role_or_raise(request.auth, grade.organization_id, OrgRole.ADMIN)
-    updated = GradeService.assign_citizens(grade, payload.citizen_ids)
+    updated = GradeService.assign_citizens(grade_id=grade_id, citizen_ids=payload.citizen_ids)
     return 200, updated
 
 
@@ -96,9 +94,9 @@ def assign_citizens(request, grade_id: int, payload: GradeCitizenAssignIn):
 )
 def add_citizens_to_grade(request, grade_id: int, payload: GradeCitizenAssignIn):
     """Add citizens to a grade without removing existing ones. Requires admin role."""
-    grade = get_object_or_404(Grade, id=grade_id)
+    grade = GradeService.get_grade(grade_id)
     _check_role_or_raise(request.auth, grade.organization_id, OrgRole.ADMIN)
-    updated = GradeService.add_citizens(grade, payload.citizen_ids)
+    updated = GradeService.add_citizens(grade_id=grade_id, citizen_ids=payload.citizen_ids)
     return 200, updated
 
 
@@ -108,7 +106,7 @@ def add_citizens_to_grade(request, grade_id: int, payload: GradeCitizenAssignIn)
 )
 def remove_citizens_from_grade(request, grade_id: int, payload: GradeCitizenAssignIn):
     """Remove citizens from a grade. Requires admin role."""
-    grade = get_object_or_404(Grade, id=grade_id)
+    grade = GradeService.get_grade(grade_id)
     _check_role_or_raise(request.auth, grade.organization_id, OrgRole.ADMIN)
-    updated = GradeService.remove_citizens(grade, payload.citizen_ids)
+    updated = GradeService.remove_citizens(grade_id=grade_id, citizen_ids=payload.citizen_ids)
     return 200, updated
