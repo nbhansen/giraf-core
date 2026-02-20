@@ -1,10 +1,18 @@
 # GIRAF Core API
 
-Shared domain service for the GIRAF platform — manages users, organizations, citizens, grades, pictograms, invitations, and authentication.
+Shared domain service for the GIRAF platform — manages users, organizations, citizens, grades, pictograms, invitations, and JWT authentication.
 
-All GIRAF apps (Weekplanner, Food Planner, Visual Tangible Artefacts) authenticate against and query this service for shared domain data.
+## How Other Apps Use Core
 
-## Platform Architecture
+GIRAF Core is the **single source of truth** for all shared data. The platform has three app-specific backends (Weekplanner, Food Planner, VTA), and they all depend on Core rather than duplicating user/org/citizen management:
+
+1. **Users log in through Core.** A mobile app calls `POST /api/v1/token/pair` with username + password. Core returns a JWT access token that contains an `org_roles` claim — a dictionary like `{"1": "owner", "5": "member"}` mapping organization IDs to the user's role.
+
+2. **App backends validate JWTs locally.** They share the same `JWT_SECRET` as Core, so they can decode and verify tokens without making a network call. The `org_roles` claim inside the token tells them what the user is allowed to do — no need to query Core on every request.
+
+3. **App backends call Core for shared data.** When the Weekplanner backend needs to verify that a citizen exists before creating an activity, it calls Core's API (e.g. `GET /api/v1/citizens/{id}`). Core is the authority — app backends never store their own copy of users, orgs, or citizens.
+
+4. **Each app stores only its own domain data.** Weekplanner stores activities and schedules. VTA stores exercises and progress. Food Planner stores meals and menus. Each has its own database. Core holds everything shared.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -13,13 +21,13 @@ All GIRAF apps (Weekplanner, Food Planner, Visual Tangible Artefacts) authentica
 └──────┬──────────────────────┬───────────────────┬──────────────┘
        │ domain data          │ domain data       │ domain data
        ▼                      ▼                   ▼
-┌──────────────┐   ┌──────────────┐   ┌──────────────┐
-│ Weekplanner  │   │ Food Planner │   │ VTA Backend  │
-│ Backend      │   │ Backend      │   │              │
-│ (.NET / C#)  │   │ (TBD)        │   │ (TBD)        │
-│ Activities,  │   │ Meals, Menus │   │ Exercises,   │
-│ Schedules    │   │ Nutrition    │   │ Progress     │
-└──────┬───────┘   └──────┬───────┘   └──────┬───────┘
+┌──────────────┐   ┌──────────────┐   ┌──────────────────┐
+│ Weekplanner  │   │ Food Planner │   │ VTA Backend      │
+│ Backend      │   │ Backend      │   │                  │
+│ (.NET 8)     │   │ (planned)    │   │ (.NET + SignalR) │
+│ Activities,  │   │ Meals, Menus │   │ Exercises,       │
+│ Schedules    │   │ Nutrition    │   │ Progress         │
+└──────┬───────┘   └──────┬───────┘   └──────┬───────────┘
        │                  │                   │
        │  users, orgs, citizens, pictograms   │
        ▼                  ▼                   ▼
@@ -36,32 +44,24 @@ All GIRAF apps (Weekplanner, Food Planner, Visual Tangible Artefacts) authentica
                     └───────────┘
 ```
 
-- **Apps authenticate directly with Core** — mobile apps call `/token/pair` to get JWTs
-- **JWTs contain `org_roles`** — e.g. `{"1": "owner", "5": "member"}`, so app backends can authorize locally
-- **App backends call Core for shared data** — citizens, orgs, grades, pictograms
-- **Each app stores only its own domain data** — activities, meals, exercises in separate DBs
-- **Core is the single source of truth** — one user account, one org, one citizen record across all apps
-
 ## Quick Start
 
 ```bash
-# Install dependencies
+# Install dependencies (requires uv — https://docs.astral.sh/uv/)
 uv sync --all-extras
 
-# Start database
+# Start the PostgreSQL database
 docker compose up -d core-db
 
-# Run migrations
+# Run database migrations
 uv run python manage.py migrate
 
-# Create superuser (for Django Admin)
+# Create a superuser (for Django Admin at /admin)
 uv run python manage.py createsuperuser
 
-# Run dev server
+# Start the dev server
 uv run python manage.py runserver
-
-# Run tests
-uv run pytest
+# API at http://localhost:8000/api/v1/docs
 ```
 
 Or run everything via Docker Compose:
@@ -69,48 +69,110 @@ Or run everything via Docker Compose:
 ```bash
 docker compose up
 # API at http://localhost:8000
-# Admin at http://localhost:8000/admin
 ```
 
 ## Architecture
 
-- **Django 5.x** with **Django Ninja** API layer
-- **PostgreSQL 16** database
-- **JWT authentication** via django-ninja-jwt (access: 1h, refresh: 7d)
-- Business logic in `services.py`, never in API endpoints
-- Each Django app follows: `models.py` → `schemas.py` → `services.py` → `api.py`
-- Role hierarchy: **owner > admin > member**
+### Stack
 
-## Interactive API Docs
+- **Python 3.12+** with **Django 5** and **Django Ninja** (fast, type-safe API layer)
+- **PostgreSQL 16** (dev/prod) — **SQLite in-memory** for tests
+- **JWT authentication** via django-ninja-jwt (access tokens: 1 hour, refresh tokens: 7 days)
+- **`uv`** as the package manager
 
-When running locally: http://localhost:8000/api/v1/docs
+### Design Pattern: Service Layer
+
+Every Django app in this project follows the same four-file structure:
+
+```
+models.py  →  schemas.py  →  services.py  →  api.py
+```
+
+Here's what each file does and why:
+
+- **`models.py`** — Django ORM models. Defines the database tables and relationships.
+- **`schemas.py`** — Pydantic-based input/output schemas (via Django Ninja). Defines what data the API accepts and returns. Keeps serialization separate from business logic.
+- **`services.py`** — **All business logic lives here.** Services are static methods wrapped in `@transaction.atomic`. They raise domain exceptions (not HTTP errors) when something goes wrong.
+- **`api.py`** — Thin endpoint layer. Each endpoint does three things: (1) check permissions, (2) call a service method, (3) return the response. No business logic here.
+
+This separation matters because:
+- Business rules are testable without HTTP — you can unit-test services directly.
+- Endpoints stay small and consistent.
+- When a rule changes, you know exactly where to look.
+
+### Error Handling
+
+Services raise domain exceptions from `core/exceptions.py`. These are caught by centralized exception handlers in `config/api.py` and mapped to HTTP status codes:
+
+| Exception                  | HTTP Status | When to use                              |
+| -------------------------- | ----------- | ---------------------------------------- |
+| `BadRequestError`          | 400         | Invalid input that isn't a validation issue |
+| `ResourceNotFoundError`    | 404         | Entity doesn't exist                     |
+| `ConflictError`            | 409         | Duplicate resource (e.g. username taken) |
+| `BusinessValidationError`  | 422         | Domain validation failure                |
+| `ServiceError`             | 500         | Unexpected internal error                |
+
+All error responses use the same shape: `{"detail": "Human-readable message"}`.
+
+### Role System
+
+Roles are per-organization, stored in the `Membership` model. The hierarchy is:
+
+```
+owner  >  admin  >  member
+```
+
+A permission check for `min_role=admin` will pass for both admins **and** owners. This is handled by `check_role_or_raise()` in `core/permissions.py`, which every endpoint calls before delegating to the service layer.
+
+| Role       | Capabilities                                             |
+| ---------- | -------------------------------------------------------- |
+| **member** | Read org data, create/update citizens                    |
+| **admin**  | + invite users, manage grades/pictograms, remove members |
+| **owner**  | + update/delete org, change member roles                 |
+
+### JWT Authentication
+
+When a user logs in (`POST /api/v1/token/pair`), Core returns an access token with a custom `org_roles` claim embedded in the JWT payload:
+
+```json
+{
+  "org_roles": {"1": "owner", "5": "member"}
+}
+```
+
+This means any backend sharing the same `JWT_SECRET` can authorize requests locally — no call back to Core needed. The custom claim is built in `core/jwt.py` by querying the user's memberships at login time.
 
 ## Project Structure
 
 ```
 config/
-  settings/          # base, dev, test, prod
-  api.py             # Central router registration
-  urls.py            # URL config (admin + API)
+  settings/            # base.py, dev.py, test.py, prod.py
+  api.py               # Central router registration + exception handlers
+  urls.py              # URL config (admin + API mount)
 apps/
-  users/             # Custom user model + registration
-  organizations/     # Orgs, membership, roles
-  citizens/          # Citizens (the kids)
-  grades/            # Grade groupings
-  pictograms/        # Visual aids library
-  invitations/       # Org invitations
+  users/               # Custom User model, registration, profile management
+  organizations/       # Organizations, Membership (with roles), CRUD
+  citizens/            # Citizens (the kids), belong to an organization
+  grades/              # Grade groupings, M2M with citizens
+  pictograms/          # Visual aids library (global or org-specific)
+  invitations/         # Email-based org invitations (send, accept, reject)
 core/
-  permissions.py     # Reusable role checks
-  jwt.py             # Custom JWT claims (org_roles)
+  permissions.py       # check_role(), check_role_or_raise(), get_membership_or_none()
+  exceptions.py        # Domain exception hierarchy
+  jwt.py               # Custom JWT claims (org_roles)
+  throttling.py        # Rate limiters (login, register, invitations)
+  schemas.py           # Shared ErrorOut schema
 ```
 
 ---
 
 ## API Reference
 
-All endpoints are prefixed with `/api/v1`. Unless noted otherwise, all endpoints require a valid JWT Bearer token.
+All endpoints are prefixed with `/api/v1`. Unless noted, all require a valid JWT Bearer token in the `Authorization` header.
 
-### Authentication & User Management
+Interactive docs are available at **http://localhost:8000/api/v1/docs** when running locally.
+
+### Authentication & Users
 
 | Method   | Endpoint                    | Auth | Description                             |
 | -------- | --------------------------- | ---- | --------------------------------------- |
@@ -118,11 +180,12 @@ All endpoints are prefixed with `/api/v1`. Unless noted otherwise, all endpoints
 | `POST`   | `/token/pair`               | None | Login — returns access + refresh tokens |
 | `POST`   | `/token/refresh`            | None | Refresh an expired access token         |
 | `POST`   | `/token/verify`             | None | Verify a token is valid                 |
+| `POST`   | `/token/blacklist`          | JWT  | Blacklist a refresh token (logout)      |
 | `GET`    | `/users/me`                 | JWT  | Get current user profile                |
-| `PUT`    | `/users/me`                 | JWT  | Update user profile                     |
+| `PUT`    | `/users/me`                 | JWT  | Update profile (first_name, last_name, email) |
 | `PUT`    | `/users/me/password`        | JWT  | Change password                         |
 | `DELETE` | `/users/me`                 | JWT  | Delete account                          |
-| `POST`   | `/users/me/profile-picture` | JWT  | Upload profile picture                  |
+| `POST`   | `/users/me/profile-picture` | JWT  | Upload profile picture (JPEG/PNG/WebP, max 5MB) |
 
 #### Register
 
@@ -140,7 +203,7 @@ POST /api/v1/auth/register
 }
 ```
 
-Returns `201` with user data. `409` if username taken, `422` if password too weak.
+Only `username` and `password` are required. Returns `201` with user data. `409` if username taken. `422` if password too weak (min 8 characters, can't be too similar to username, can't be a common password).
 
 #### Login
 
@@ -166,7 +229,9 @@ Returns:
 }
 ```
 
-The `org_roles` claim is also embedded inside the JWT access token payload itself, so app backends can decode the token to determine user roles without calling the Core API.
+The `org_roles` claim is also embedded inside the JWT access token payload itself, so app backends can decode the token to determine user roles without calling Core.
+
+Rate-limited to **5 requests/minute** per IP.
 
 #### Update Profile
 
@@ -183,7 +248,7 @@ Authorization: Bearer <access_token>
 }
 ```
 
-All fields are optional. Only provided fields will be updated. Returns `200` with updated user data, or `422` for validation errors.
+All fields are optional — only provided fields are updated.
 
 #### Change Password
 
@@ -199,26 +264,7 @@ Authorization: Bearer <access_token>
 }
 ```
 
-Returns `200` on success, `400` if old password is incorrect, `422` if new password doesn't meet strength requirements.
-
-#### Delete Account
-
-```
-DELETE /api/v1/users/me
-Authorization: Bearer <access_token>
-```
-
-Permanently deletes the user account. Returns `204` on success. This action cannot be undone.
-
-#### Upload Profile Picture
-
-```
-POST /api/v1/users/me/profile-picture
-Authorization: Bearer <access_token>
-Content-Type: multipart/form-data
-```
-
-Send file as `file` field in multipart form data. Accepts JPEG, PNG, and WebP images up to 5MB. Returns `200` with updated user data including `profile_picture` URL, or `422` for invalid file type/size.
+Returns `422` if old password is incorrect or new password doesn't meet strength requirements.
 
 ---
 
@@ -229,15 +275,19 @@ Send file as `file` field in multipart form data. Accepts JPEG, PNG, and WebP im
 | `POST`   | `/organizations`                            | JWT      | Create org (creator becomes owner) |
 | `GET`    | `/organizations`                            | JWT      | List user's organizations          |
 | `GET`    | `/organizations/{org_id}`                   | member   | Get org detail                     |
+| `PATCH`  | `/organizations/{org_id}`                   | owner    | Update org name                    |
+| `DELETE` | `/organizations/{org_id}`                   | owner    | Delete org                         |
 | `GET`    | `/organizations/{org_id}/members`           | member   | List members                       |
 | `PATCH`  | `/organizations/{org_id}/members/{user_id}` | owner    | Update member role                 |
 | `DELETE` | `/organizations/{org_id}/members/{user_id}` | admin    | Remove member                      |
+
+Safety guard: you cannot remove or demote the last owner of an organization (returns `400`).
 
 ---
 
 ### Citizens
 
-Citizens are kids with autism, belonging to an organization.
+Citizens are the kids with autism who belong to an organization.
 
 | Method   | Endpoint                           | Min Role | Description          |
 | -------- | ---------------------------------- | -------- | -------------------- |
@@ -251,78 +301,75 @@ Citizens are kids with autism, belonging to an organization.
 
 ### Grades
 
-Grades group citizens within an organization.
+Grades group citizens within an organization (e.g. "Class 3A"). A grade has a many-to-many relationship with citizens.
 
-| Method   | Endpoint                         | Min Role | Description              |
-| -------- | -------------------------------- | -------- | ------------------------ |
-| `POST`   | `/organizations/{org_id}/grades` | admin    | Create grade             |
-| `GET`    | `/organizations/{org_id}/grades` | member   | List grades in org       |
-| `PATCH`  | `/grades/{grade_id}`             | admin    | Update grade             |
-| `DELETE` | `/grades/{grade_id}`             | admin    | Delete grade             |
-| `POST`   | `/grades/{grade_id}/citizens`    | admin    | Assign citizens to grade |
+| Method   | Endpoint                            | Min Role | Description                              |
+| -------- | ----------------------------------- | -------- | ---------------------------------------- |
+| `POST`   | `/organizations/{org_id}/grades`    | admin    | Create grade                             |
+| `GET`    | `/organizations/{org_id}/grades`    | member   | List grades in org                       |
+| `GET`    | `/grades/{grade_id}`                | member   | Get grade detail                         |
+| `PATCH`  | `/grades/{grade_id}`                | admin    | Update grade name                        |
+| `DELETE` | `/grades/{grade_id}`                | admin    | Delete grade                             |
+| `POST`   | `/grades/{grade_id}/citizens`       | admin    | Set citizens (replaces entire set)       |
+| `POST`   | `/grades/{grade_id}/citizens/add`   | admin    | Add citizens (keeps existing)            |
+| `POST`   | `/grades/{grade_id}/citizens/remove`| admin    | Remove specific citizens                 |
 
 ---
 
 ### Pictograms
 
-Visual aids used across the platform. Pictograms can be **global** (no org) or **org-specific**.
+Visual aids used across the platform. Pictograms can be **global** (no organization — available to everyone) or **org-specific** (only visible to members of that org). Listing pictograms with an `organization_id` returns both global and org-specific ones.
 
-| Method   | Endpoint                           | Min Role              | Description                                 |
-| -------- | ---------------------------------- | --------------------- | ------------------------------------------- |
-| `POST`   | `/pictograms`                      | admin (if org-scoped) | Create pictogram                            |
-| `GET`    | `/pictograms?organization_id={id}` | JWT                   | List pictograms (global + org if specified) |
-| `GET`    | `/pictograms/{pictogram_id}`       | JWT                   | Get pictogram                               |
-| `DELETE` | `/pictograms/{pictogram_id}`       | admin (if org-scoped) | Delete pictogram                            |
+| Method   | Endpoint                           | Min Role              | Description               |
+| -------- | ---------------------------------- | --------------------- | ------------------------- |
+| `POST`   | `/pictograms`                      | admin (if org-scoped) | Create with image URL     |
+| `POST`   | `/pictograms/upload`               | admin (if org-scoped) | Upload image file         |
+| `GET`    | `/pictograms?organization_id={id}` | JWT                   | List (global + org if specified) |
+| `GET`    | `/pictograms/{pictogram_id}`       | JWT                   | Get pictogram             |
+| `DELETE` | `/pictograms/{pictogram_id}`       | admin / superuser     | Delete pictogram          |
+
+Deleting a global pictogram requires superuser status. Deleting an org-scoped pictogram requires admin role in that org.
+
+Upload accepts JPEG, PNG, and WebP images up to 5MB.
 
 ---
 
 ### Invitations
 
-Invitations let org admins invite users by email.
+Invitations let org admins invite users by email. The flow is: admin sends invite → receiver sees it in their pending list → receiver accepts (becomes a member) or rejects.
 
 | Method   | Endpoint                                   | Min Role       | Description                         |
 | -------- | ------------------------------------------ | -------------- | ----------------------------------- |
 | `POST`   | `/organizations/{org_id}/invitations`      | admin          | Send invitation (by receiver email) |
 | `GET`    | `/organizations/{org_id}/invitations`      | admin          | List pending invitations for org    |
-| `DELETE` | `/organizations/{org_id}/invitations/{id}` | admin          | Revoke/delete invitation            |
+| `DELETE` | `/organizations/{org_id}/invitations/{id}` | admin          | Revoke invitation                   |
 | `GET`    | `/invitations/received`                    | JWT (receiver) | List my pending invitations         |
 | `POST`   | `/invitations/{id}/accept`                 | JWT (receiver) | Accept — creates membership         |
 | `POST`   | `/invitations/{id}/reject`                 | JWT (receiver) | Reject invitation                   |
 
 Guards:
-
-- Cannot invite a user who is already a member → `409`
-- Cannot create duplicate pending invitation → `409`
-- Cannot invite a nonexistent email → `404`
-- Only the receiver can accept/reject → `403`
+- Cannot invite a user who is already a member (`409`)
+- Cannot create a duplicate pending invitation for the same user+org (`409`)
+- Cannot invite a nonexistent email (`404`)
+- Only the receiver can accept or reject (`403`)
+- Rate-limited to **10 sends/minute** per authenticated user
 
 ---
 
-## Role System
-
-Roles are per-organization via the `Membership` model:
-
-| Role       | Can do                                                   |
-| ---------- | -------------------------------------------------------- |
-| **member** | Read org data, manage citizens                           |
-| **admin**  | + invite users, manage grades/pictograms, remove members |
-| **owner**  | + change member roles                                    |
-
-Roles follow a hierarchy: `owner > admin > member`. A check for `min_role=admin` passes for both admins and owners.
-
 ## Environment Variables
 
-| Variable                 | Default               | Description                     |
-| ------------------------ | --------------------- | ------------------------------- |
-| `DJANGO_SETTINGS_MODULE` | `config.settings.dev` | Settings module                 |
-| `DJANGO_SECRET_KEY`      | `insecure-dev-key...` | Django secret key               |
-| `JWT_SECRET`             | Same as `SECRET_KEY`  | JWT signing key                 |
-| `POSTGRES_DB`            | `giraf_core`          | Database name                   |
-| `POSTGRES_USER`          | `giraf`               | Database user                   |
-| `POSTGRES_PASSWORD`      | `giraf`               | Database password               |
-| `POSTGRES_HOST`          | `localhost`           | Database host                   |
-| `POSTGRES_PORT`          | `5432`                | Database port                   |
-| `CORS_ALLOWED_ORIGINS`   | (empty)               | Comma-separated allowed origins |
+| Variable                 | Default               | Description                            |
+| ------------------------ | --------------------- | -------------------------------------- |
+| `DJANGO_SETTINGS_MODULE` | `config.settings.dev` | Settings module (dev/test/prod)        |
+| `DJANGO_SECRET_KEY`      | dev-only default      | Django secret key (required in prod)   |
+| `JWT_SECRET`             | Same as `SECRET_KEY`  | JWT signing key (shared with app backends) |
+| `POSTGRES_DB`            | `giraf_core`          | Database name                          |
+| `POSTGRES_USER`          | `giraf`               | Database user                          |
+| `POSTGRES_PASSWORD`      | `giraf`               | Database password                      |
+| `POSTGRES_HOST`          | `localhost`           | Database host                          |
+| `POSTGRES_PORT`          | `5432`                | Database port                          |
+| `CORS_ALLOWED_ORIGINS`   | (empty)               | Comma-separated allowed origins        |
+| `ALLOWED_HOSTS`          | (empty)               | Comma-separated allowed hosts (prod)   |
 
 ## Testing
 
@@ -330,15 +377,32 @@ Roles follow a hierarchy: `owner > admin > member`. A check for `min_role=admin`
 # Run all tests
 uv run pytest
 
-# Run with verbose output
+# Verbose output
 uv run pytest -v
 
-# Run a specific app's tests
+# Single app
 uv run pytest apps/users/ -v
-uv run pytest apps/organizations/ -v
 
-# Run with coverage
-uv run pytest --cov=apps --cov=core
+# Single test
+uv run pytest apps/users/tests/test_api.py::test_register -v
+
+# With coverage
+uv run pytest --cov=apps --cov=core --cov-report=term-missing
 ```
 
-Tests use SQLite in-memory for speed (configured in `config/settings/test.py`).
+Tests use SQLite in-memory for speed (`config/settings/test.py`) with MD5 password hashing to keep tests fast.
+
+## Code Quality
+
+```bash
+# Lint
+uv run ruff check .
+
+# Auto-format
+uv run ruff format .
+
+# Type check
+uv run mypy apps/ config/ core/
+```
+
+Ruff is configured for Python 3.12, line length 120, with migrations excluded.
