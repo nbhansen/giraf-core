@@ -1,5 +1,9 @@
+import io
+
 import pytest
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
+from PIL import Image
 
 from apps.users.models import User
 from apps.users.services import UserService
@@ -39,3 +43,18 @@ class TestUserService(TestCase):
         user_id = self.user.id
         UserService.delete_user(user_id=self.user.id)
         self.assertFalse(User.objects.filter(id=user_id).exists())
+
+    def test_upload_profile_picture_oversized(self):
+        """Test that uploading an oversized image raises BusinessValidationError."""
+        buf = io.BytesIO()
+        Image.new("RGB", (10, 10)).save(buf, format="PNG")
+        buf.seek(0)
+        file = SimpleUploadedFile("big.png", buf.read() + b"\x00" * (6 * 1024 * 1024), content_type="image/png")
+        with self.assertRaises(BusinessValidationError):
+            UserService.upload_profile_picture(user_id=self.user.id, file=file)
+
+    def test_upload_profile_picture_corrupted(self):
+        """Test that uploading a corrupted image raises BusinessValidationError."""
+        file = SimpleUploadedFile("fake.png", b"not an image at all", content_type="image/png")
+        with self.assertRaises(BusinessValidationError):
+            UserService.upload_profile_picture(user_id=self.user.id, file=file)

@@ -8,6 +8,7 @@ import mimetypes
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
+from PIL import Image
 
 from apps.users.models import User
 from core.exceptions import BusinessValidationError, ConflictError, ResourceNotFoundError
@@ -115,6 +116,12 @@ class UserService:
         max_size = 5 * 1024 * 1024
         if file.size > max_size:
             raise BusinessValidationError("File size must not exceed 5MB.")
+
+        try:
+            Image.open(file).verify()
+            file.seek(0)
+        except Exception:
+            raise BusinessValidationError("File is not a valid image.")
 
         # Delete old profile picture if exists
         if user.profile_picture:

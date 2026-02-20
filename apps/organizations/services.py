@@ -17,6 +17,18 @@ class OrganizationService:
         return org
 
     @staticmethod
+    def _get_org_or_raise(org_id: int) -> Organization:
+        try:
+            return Organization.objects.get(id=org_id)
+        except Organization.DoesNotExist:
+            raise ResourceNotFoundError("Organization not found.")
+
+    @staticmethod
+    def get_organization(org_id: int) -> Organization:
+        """Get an organization by ID."""
+        return OrganizationService._get_org_or_raise(org_id)
+
+    @staticmethod
     def get_user_organizations(user: User):
         """Return organizations the user is a member of."""
         org_ids = Membership.objects.filter(user=user).values_list("organization_id", flat=True)
@@ -39,10 +51,7 @@ class OrganizationService:
     @transaction.atomic
     def update_organization(*, org_id: int, name: str) -> Organization:
         """Update an organization's name."""
-        try:
-            org = Organization.objects.get(id=org_id)
-        except Organization.DoesNotExist:
-            raise ResourceNotFoundError("Organization not found.")
+        org = OrganizationService._get_org_or_raise(org_id)
         org.name = name
         org.save(update_fields=["name"])
         return org
@@ -51,10 +60,7 @@ class OrganizationService:
     @transaction.atomic
     def delete_organization(*, org_id: int) -> None:
         """Delete an organization."""
-        try:
-            org = Organization.objects.get(id=org_id)
-        except Organization.DoesNotExist:
-            raise ResourceNotFoundError("Organization not found.")
+        org = OrganizationService._get_org_or_raise(org_id)
         org.delete()
 
     @staticmethod

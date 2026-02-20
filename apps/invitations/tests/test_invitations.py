@@ -74,29 +74,29 @@ class TestInvitationService:
     def test_send_raises_on_nonexistent_email(self, admin_user, org_with_admin):
         with pytest.raises(InvitationSendError):
             InvitationService.send(
-                organization=org_with_admin,
-                sender=admin_user,
+                org_id=org_with_admin.id,
+                sender_id=admin_user.id,
                 receiver_email="nobody@example.com",
             )
 
     def test_send_raises_on_already_member(self, admin_user, org_with_admin, member):
         with pytest.raises(InvitationSendError):
             InvitationService.send(
-                organization=org_with_admin,
-                sender=admin_user,
+                org_id=org_with_admin.id,
+                sender_id=admin_user.id,
                 receiver_email=member.email,
             )
 
     def test_send_raises_on_duplicate(self, admin_user, receiver, org_with_admin):
         InvitationService.send(
-            organization=org_with_admin,
-            sender=admin_user,
+            org_id=org_with_admin.id,
+            sender_id=admin_user.id,
             receiver_email="receiver@example.com",
         )
         with pytest.raises(DuplicateInvitationError):
             InvitationService.send(
-                organization=org_with_admin,
-                sender=admin_user,
+                org_id=org_with_admin.id,
+                sender_id=admin_user.id,
                 receiver_email="receiver@example.com",
             )
 
@@ -305,6 +305,38 @@ class TestInvitationFlow:
             **headers,
         )
         assert response.status_code == 403
+
+    def test_accept_nonexistent_invitation(self, client, receiver):
+        headers = auth_header(client, "receiver")
+        response = client.post(
+            "/api/v1/invitations/99999/accept",
+            content_type="application/json",
+            **headers,
+        )
+        assert response.status_code == 404
+
+    def test_reject_nonexistent_invitation(self, client, receiver):
+        headers = auth_header(client, "receiver")
+        response = client.post(
+            "/api/v1/invitations/99999/reject",
+            content_type="application/json",
+            **headers,
+        )
+        assert response.status_code == 404
+
+    def test_delete_invitation_from_wrong_org(self, client, org_with_admin, admin_user, receiver):
+        """Deleting an invitation that belongs to a different org returns 404."""
+        inv = Invitation.objects.create(organization=org_with_admin, sender=admin_user, receiver=receiver)
+        other_org = Organization.objects.create(name="Other School")
+        from apps.organizations.models import Membership, OrgRole
+
+        Membership.objects.create(user=admin_user, organization=other_org, role=OrgRole.ADMIN)
+        headers = auth_header(client, "admin")
+        response = client.delete(
+            f"/api/v1/organizations/{other_org.id}/invitations/{inv.id}",
+            **headers,
+        )
+        assert response.status_code == 404
 
 
 # ---------------------------------------------------------------------------

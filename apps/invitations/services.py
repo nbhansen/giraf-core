@@ -33,7 +33,7 @@ class InvitationService:
         """
         try:
             receiver = User.objects.get(email=receiver_email)
-        except User.DoesNotExist:
+        except (User.DoesNotExist, User.MultipleObjectsReturned):
             raise InvitationSendError("Cannot send invitation.")
 
         if Membership.objects.filter(user=receiver, organization_id=org_id).exists():

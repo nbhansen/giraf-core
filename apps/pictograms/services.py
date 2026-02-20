@@ -5,6 +5,7 @@ import mimetypes
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from django.db.models import Q
+from PIL import Image
 
 from apps.pictograms.models import Pictogram
 from core.exceptions import BusinessValidationError, ResourceNotFoundError
@@ -56,6 +57,12 @@ class PictogramService:
         max_size = 5 * 1024 * 1024
         if image.size > max_size:
             raise BusinessValidationError("File size must not exceed 5MB.")
+
+        try:
+            Image.open(image).verify()
+            image.seek(0)
+        except Exception:
+            raise BusinessValidationError("File is not a valid image.")
 
         return Pictogram.objects.create(
             name=name,

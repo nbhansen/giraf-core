@@ -4,6 +4,8 @@ Reusable helpers for checking organization membership and role-based access.
 All role checks use the hierarchy: OWNER > ADMIN > MEMBER.
 """
 
+from ninja.errors import HttpError
+
 from apps.organizations.models import Membership, OrgRole
 
 ROLE_HIERARCHY: dict[str, int] = {
@@ -39,3 +41,10 @@ def check_role(user, org_id: int, *, min_role: str) -> tuple[bool, str]:
         return True, ""
 
     return False, f"Insufficient permissions. Required: {min_role}, your role: {membership.role}."
+
+
+def check_role_or_raise(user, org_id: int, min_role: str) -> None:
+    """Check role and raise HttpError(403) if insufficient."""
+    allowed, msg = check_role(user, org_id, min_role=min_role)
+    if not allowed:
+        raise HttpError(403, msg)

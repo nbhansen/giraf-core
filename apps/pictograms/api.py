@@ -1,48 +1,25 @@
 """Pictogram API endpoints."""
 
-from django.shortcuts import get_object_or_404
-from ninja import File, Form, Router, Schema
+from ninja import File, Form, Router
 from ninja.errors import HttpError
 from ninja.files import UploadedFile
 from ninja.pagination import LimitOffsetPagination, paginate
 
 from apps.organizations.models import OrgRole
-from apps.pictograms.models import Pictogram
+from apps.pictograms.schemas import PictogramCreateIn, PictogramOut
 from apps.pictograms.services import PictogramService
-from core.permissions import check_role
+from core.permissions import check_role_or_raise
 from core.schemas import ErrorOut
 
 router = Router(tags=["pictograms"])
-
-
-class PictogramCreateIn(Schema):
-    name: str
-    image_url: str
-    organization_id: int | None = None
-
-
-class PictogramOut(Schema):
-    id: int
-    name: str
-    image_url: str
-    organization_id: int | None
-
-    @staticmethod
-    def resolve_image_url(obj):
-        """Return image file URL if uploaded, otherwise the stored image_url."""
-        if obj.image:
-            return obj.image.url
-        return obj.image_url
 
 
 @router.post("", response={201: PictogramOut, 403: ErrorOut, 422: ErrorOut})
 def create_pictogram(request, payload: PictogramCreateIn):
     """Create a pictogram. If org-scoped, requires admin role in that org."""
     if payload.organization_id:
-        allowed, msg = check_role(request.auth, payload.organization_id, min_role=OrgRole.ADMIN)
-        if not allowed:
-            raise HttpError(403, msg)
-    
+        check_role_or_raise(request.auth, payload.organization_id, OrgRole.ADMIN)
+
     pictogram = PictogramService.create_pictogram(
         name=payload.name,
         image_url=payload.image_url,
@@ -67,10 +44,8 @@ def upload_pictogram(
 ):
     """Upload a pictogram with an image file. Requires admin role if org-scoped."""
     if organization_id:
-        allowed, msg = check_role(request.auth, organization_id, min_role=OrgRole.ADMIN)
-        if not allowed:
-            raise HttpError(403, msg)
-    
+        check_role_or_raise(request.auth, organization_id, OrgRole.ADMIN)
+
     pictogram = PictogramService.upload_pictogram(
         name=name,
         image=image,
@@ -82,18 +57,18 @@ def upload_pictogram(
 @router.get("/{pictogram_id}", response={200: PictogramOut, 404: ErrorOut})
 def get_pictogram(request, pictogram_id: int):
     """Get a pictogram by ID."""
-    pictogram = get_object_or_404(Pictogram, id=pictogram_id)
+    pictogram = PictogramService.get_pictogram(pictogram_id)
     return 200, pictogram
 
 
 @router.delete("/{pictogram_id}", response={204: None, 403: ErrorOut, 404: ErrorOut})
 def delete_pictogram(request, pictogram_id: int):
-    """Delete a pictogram. Requires admin role if org-scoped."""
-    pictogram = get_object_or_404(Pictogram, id=pictogram_id)
+    """Delete a pictogram. Requires admin role if org-scoped; superuser if global."""
+    pictogram = PictogramService.get_pictogram(pictogram_id)
     if pictogram.organization_id:
-        allowed, msg = check_role(request.auth, pictogram.organization_id, min_role=OrgRole.ADMIN)
-        if not allowed:
-            raise HttpError(403, msg)
-    
-    PictogramService.delete_pictogram(pictogram)
+        check_role_or_raise(request.auth, pictogram.organization_id, OrgRole.ADMIN)
+    elif not request.auth.is_superuser:
+        raise HttpError(403, "Only superusers can delete global pictograms.")
+
+    PictogramService.delete_pictogram(pictogram_id=pictogram_id)
     return 204, None

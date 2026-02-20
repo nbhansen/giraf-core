@@ -21,3 +21,8 @@ SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+# ---------------------------------------------------------------------------
+# JWT — re-evaluate SIGNING_KEY now that SECRET_KEY has been overridden
+# ---------------------------------------------------------------------------
+NINJA_JWT["SIGNING_KEY"] = os.environ.get("JWT_SECRET", SECRET_KEY)  # noqa: F405

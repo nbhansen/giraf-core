@@ -3,10 +3,13 @@
 Tests for profile updates, password changes, account deletion, and profile pictures.
 """
 
+import io
+
 import pytest
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client
+from PIL import Image
 
 from apps.users.tests.factories import UserFactory
 
@@ -195,12 +198,11 @@ class TestDeleteAccount:
 class TestUploadProfilePicture:
     def test_upload_profile_picture_success(self, client, user):
         headers = get_auth_header(client)
-        # Create a simple test image
-        image_file = SimpleUploadedFile(
-            "test.jpg",
-            b"fake image content",
-            content_type="image/jpeg",
-        )
+        # Create a valid test image
+        buf = io.BytesIO()
+        Image.new("RGB", (10, 10), color="red").save(buf, format="JPEG")
+        buf.seek(0)
+        image_file = SimpleUploadedFile("test.jpg", buf.read(), content_type="image/jpeg")
 
         response = client.post(
             "/api/v1/users/me/profile-picture",
@@ -234,11 +236,10 @@ class TestUploadProfilePicture:
         headers = get_auth_header(client)
 
         # Upload first image
-        image1 = SimpleUploadedFile(
-            "test1.jpg",
-            b"first image",
-            content_type="image/jpeg",
-        )
+        buf1 = io.BytesIO()
+        Image.new("RGB", (10, 10), color="red").save(buf1, format="JPEG")
+        buf1.seek(0)
+        image1 = SimpleUploadedFile("test1.jpg", buf1.read(), content_type="image/jpeg")
         response1 = client.post(
             "/api/v1/users/me/profile-picture",
             data={"file": image1},
@@ -248,9 +249,12 @@ class TestUploadProfilePicture:
         first_path = response1.json()["profile_picture"]
 
         # Upload second image
+        buf2 = io.BytesIO()
+        Image.new("RGB", (10, 10), color="blue").save(buf2, format="JPEG")
+        buf2.seek(0)
         image2 = SimpleUploadedFile(
             "test2.jpg",
-            b"second image",
+            buf2.read(),
             content_type="image/jpeg",
         )
         response2 = client.post(

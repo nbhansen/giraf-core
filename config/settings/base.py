@@ -129,6 +129,7 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 
 # ---------------------------------------------------------------------------
 # Media files (user uploads)
+# NOTE: In production, MEDIA_ROOT needs a persistent volume or S3 backend.
 # ---------------------------------------------------------------------------
 
 MEDIA_URL = "/media/"
@@ -143,7 +144,39 @@ CORS_ALLOWED_ORIGINS: list[str] = [o.strip() for o in _cors_raw.split(",") if o.
 CORS_ALLOW_ALL_ORIGINS = DEBUG  # Only in dev
 
 # ---------------------------------------------------------------------------
+# Logging
+# ---------------------------------------------------------------------------
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "json": {
+            "()": "django.utils.log.ServerFormatter",
+            "format": "%(asctime)s %(levelname)s %(name)s %(message)s",
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "json",
+        },
+    },
+    "loggers": {
+        "django": {
+            "handlers": ["console"],
+            "level": "WARNING",
+        },
+        "apps": {
+            "handlers": ["console"],
+            "level": "INFO",
+        },
+    },
+}
+
+# ---------------------------------------------------------------------------
 # Cache (used by rate limiting)
+# NOTE: Replace LocMemCache with Redis in production for multi-process support.
 # ---------------------------------------------------------------------------
 
 CACHES = {

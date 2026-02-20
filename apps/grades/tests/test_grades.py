@@ -111,6 +111,44 @@ class TestGradeAPI:
         grade.refresh_from_db()
         assert grade.citizens.count() == 2
 
+    def test_get_grade(self, client, org, member):
+        grade = Grade.objects.create(name="Class 3A", organization=org)
+        headers = auth_header(client, "member")
+        response = client.get(f"/api/v1/grades/{grade.id}", **headers)
+        assert response.status_code == 200
+        assert response.json()["name"] == "Class 3A"
+
+    def test_remove_citizens_from_grade(self, client, org, owner):
+        grade = Grade.objects.create(name="Class 3A", organization=org)
+        c1 = Citizen.objects.create(first_name="Alice", last_name="A", organization=org)
+        grade.citizens.add(c1)
+
+        headers = auth_header(client, "owner")
+        response = client.post(
+            f"/api/v1/grades/{grade.id}/citizens/remove",
+            data={"citizen_ids": [c1.id]},
+            content_type="application/json",
+            **headers,
+        )
+        assert response.status_code == 200
+        grade.refresh_from_db()
+        assert grade.citizens.count() == 0
+
+    def test_remove_citizens_cross_org_rejected(self, client, org, owner):
+        """P3c: remove_citizens validates org ownership."""
+        other_org = Organization.objects.create(name="Other School")
+        grade = Grade.objects.create(name="Class 3A", organization=org)
+        foreign_citizen = Citizen.objects.create(first_name="Eve", last_name="F", organization=other_org)
+
+        headers = auth_header(client, "owner")
+        response = client.post(
+            f"/api/v1/grades/{grade.id}/citizens/remove",
+            data={"citizen_ids": [foreign_citizen.id]},
+            content_type="application/json",
+            **headers,
+        )
+        assert response.status_code == 400
+
     def test_member_cannot_delete_grade(self, client, org, member):
         grade = Grade.objects.create(name="Class 3A", organization=org)
         headers = auth_header(client, "member")

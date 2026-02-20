@@ -71,5 +71,6 @@ class GradeService:
     @transaction.atomic
     def remove_citizens(*, grade_id: int, citizen_ids: list[int]) -> Grade:
         grade = GradeService._get_grade_or_raise(grade_id)
+        GradeService._validate_citizens_belong_to_org(citizen_ids, grade.organization_id)
         grade.citizens.remove(*citizen_ids)
         return grade

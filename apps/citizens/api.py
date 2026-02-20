@@ -1,22 +1,15 @@
 """Citizen API endpoints."""
 
 from ninja import Router
-from ninja.errors import HttpError
 from ninja.pagination import LimitOffsetPagination, paginate
 
 from apps.citizens.schemas import CitizenCreateIn, CitizenOut, CitizenUpdateIn
 from apps.citizens.services import CitizenService
 from apps.organizations.models import OrgRole
-from core.permissions import check_role
+from core.permissions import check_role_or_raise
 from core.schemas import ErrorOut
 
 router = Router(tags=["citizens"])
-
-
-def _check_role_or_raise(user, org_id: int, min_role: str) -> None:
-    allowed, msg = check_role(user, org_id, min_role=min_role)
-    if not allowed:
-        raise HttpError(403, msg)
 
 
 # --- Org-scoped endpoints ---
@@ -28,7 +21,7 @@ def _check_role_or_raise(user, org_id: int, min_role: str) -> None:
 )
 def create_citizen(request, org_id: int, payload: CitizenCreateIn):
     """Create a citizen in an organization. Requires membership."""
-    _check_role_or_raise(request.auth, org_id, OrgRole.MEMBER)
+    check_role_or_raise(request.auth, org_id, OrgRole.MEMBER)
     citizen = CitizenService.create_citizen(org_id=org_id, first_name=payload.first_name, last_name=payload.last_name)
     return 201, citizen
 
@@ -40,7 +33,7 @@ def create_citizen(request, org_id: int, payload: CitizenCreateIn):
 @paginate(LimitOffsetPagination)
 def list_citizens(request, org_id: int):
     """List citizens in an organization. Requires membership."""
-    _check_role_or_raise(request.auth, org_id, OrgRole.MEMBER)
+    check_role_or_raise(request.auth, org_id, OrgRole.MEMBER)
     return CitizenService.list_citizens(org_id)
 
 
@@ -54,7 +47,7 @@ def list_citizens(request, org_id: int):
 def get_citizen(request, citizen_id: int):
     """Get citizen detail. Requires membership in the citizen's org."""
     citizen = CitizenService.get_citizen(citizen_id)
-    _check_role_or_raise(request.auth, citizen.organization_id, OrgRole.MEMBER)
+    check_role_or_raise(request.auth, citizen.organization_id, OrgRole.MEMBER)
     return 200, citizen
 
 
@@ -65,7 +58,7 @@ def get_citizen(request, citizen_id: int):
 def update_citizen(request, citizen_id: int, payload: CitizenUpdateIn):
     """Update a citizen. Requires membership in the citizen's org."""
     citizen = CitizenService.get_citizen(citizen_id)
-    _check_role_or_raise(request.auth, citizen.organization_id, OrgRole.MEMBER)
+    check_role_or_raise(request.auth, citizen.organization_id, OrgRole.MEMBER)
     updated = CitizenService.update_citizen(
         citizen_id=citizen_id, first_name=payload.first_name, last_name=payload.last_name
     )
@@ -79,6 +72,6 @@ def update_citizen(request, citizen_id: int, payload: CitizenUpdateIn):
 def delete_citizen(request, citizen_id: int):
     """Delete a citizen. Requires admin role in the citizen's org."""
     citizen = CitizenService.get_citizen(citizen_id)
-    _check_role_or_raise(request.auth, citizen.organization_id, OrgRole.ADMIN)
+    check_role_or_raise(request.auth, citizen.organization_id, OrgRole.ADMIN)
     CitizenService.delete_citizen(citizen_id=citizen_id)
     return 204, None

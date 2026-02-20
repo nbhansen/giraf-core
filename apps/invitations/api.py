@@ -13,18 +13,13 @@ from ninja_jwt.authentication import JWTAuth
 
 from apps.invitations.schemas import InvitationCreateIn, InvitationOut
 from apps.invitations.services import InvitationService
-from core.permissions import check_role
+from apps.organizations.models import OrgRole
+from core.permissions import check_role_or_raise
 from core.schemas import ErrorOut
 from core.throttling import InvitationSendRateThrottle
 
 org_router = Router(tags=["Invitations"])
 receiver_router = Router(tags=["Invitations"])
-
-
-def _check_role_or_raise(user, org_id: int, min_role: str) -> None:
-    allowed, msg = check_role(user, org_id, min_role=min_role)
-    if not allowed:
-        raise HttpError(403, msg)
 
 
 # ---------------------------------------------------------------------------
@@ -39,7 +34,7 @@ def _check_role_or_raise(user, org_id: int, min_role: str) -> None:
     throttle=[InvitationSendRateThrottle()],
 )
 def send_invitation(request, org_id: int, payload: InvitationCreateIn):
-    _check_role_or_raise(request.auth, org_id, "admin")
+    check_role_or_raise(request.auth, org_id, OrgRole.ADMIN)
     return 201, InvitationService.send(
         org_id=org_id,
         sender_id=request.auth.id,
@@ -59,7 +54,7 @@ def send_invitation(request, org_id: int, payload: InvitationCreateIn):
 )
 @paginate(LimitOffsetPagination)
 def list_org_invitations(request, org_id: int):
-    _check_role_or_raise(request.auth, org_id, "admin")
+    check_role_or_raise(request.auth, org_id, OrgRole.ADMIN)
     return InvitationService.list_for_org(org_id)
 
 
@@ -74,7 +69,7 @@ def list_org_invitations(request, org_id: int):
     auth=JWTAuth(),
 )
 def delete_invitation(request, org_id: int, invitation_id: int):
-    _check_role_or_raise(request.auth, org_id, "admin")
+    check_role_or_raise(request.auth, org_id, OrgRole.ADMIN)
     inv = InvitationService.get_invitation(invitation_id)
     if inv.organization_id != org_id:
         raise HttpError(404, f"Invitation {invitation_id} not found.")

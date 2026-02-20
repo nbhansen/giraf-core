@@ -10,48 +10,19 @@ import io
 import pytest
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import Client
 from PIL import Image
 
-from apps.organizations.models import Membership, Organization, OrgRole
+from apps.organizations.models import Organization
 from apps.users.tests.factories import UserFactory
+from conftest import auth_header
 
 
-@pytest.fixture
-def client():
-    return Client()
-
-
-@pytest.fixture
-def owner(db):
-    return UserFactory(username="owner", password="testpass123")
-
-
-@pytest.fixture
-def member(db):
-    return UserFactory(username="member", password="testpass123")
-
-
-@pytest.fixture
-def non_member(db):
-    return UserFactory(username="outsider", password="testpass123")
-
-
-@pytest.fixture
-def org(db, owner, member):
-    org = Organization.objects.create(name="Sunflower School")
-    Membership.objects.create(user=owner, organization=org, role=OrgRole.OWNER)
-    Membership.objects.create(user=member, organization=org, role=OrgRole.MEMBER)
-    return org
-
-
-def auth_header(client, username, password="testpass123"):
-    resp = client.post(
-        "/api/v1/token/pair",
-        data={"username": username, "password": password},
-        content_type="application/json",
-    )
-    return {"HTTP_AUTHORIZATION": f"Bearer {resp.json()['access']}"}
+def _make_test_image() -> SimpleUploadedFile:
+    """Create a minimal valid image file for testing."""
+    buf = io.BytesIO()
+    Image.new("RGB", (10, 10), color="red").save(buf, format="PNG")
+    buf.seek(0)
+    return SimpleUploadedFile("test.png", buf.read(), content_type="image/png")
 
 
 @pytest.mark.django_db
@@ -129,14 +100,6 @@ class TestPictogramAPI:
         response = client.delete(f"/api/v1/pictograms/{p.id}", **headers)
         assert response.status_code == 204
         assert not Pictogram.objects.filter(id=p.id).exists()
-
-
-def _make_test_image() -> SimpleUploadedFile:
-    """Create a minimal valid image file for testing."""
-    buf = io.BytesIO()
-    Image.new("RGB", (10, 10), color="red").save(buf, format="PNG")
-    buf.seek(0)
-    return SimpleUploadedFile("test.png", buf.read(), content_type="image/png")
 
 
 @pytest.mark.django_db
@@ -232,3 +195,24 @@ class TestPictogramPermissions:
             **headers,
         )
         assert response.status_code == 403
+
+    def test_non_superuser_cannot_delete_global_pictogram(self, client, owner):
+        """P0 fix: non-superuser must not be able to delete global pictograms."""
+        from apps.pictograms.models import Pictogram
+
+        p = Pictogram.objects.create(name="Global", image_url="https://example.com/g.png", organization=None)
+        headers = auth_header(client, "owner")
+        response = client.delete(f"/api/v1/pictograms/{p.id}", **headers)
+        assert response.status_code == 403
+        assert Pictogram.objects.filter(id=p.id).exists()
+
+    def test_superuser_can_delete_global_pictogram(self, client, db):
+        """P0 fix: superuser can delete global pictograms."""
+        from apps.pictograms.models import Pictogram
+
+        UserFactory(username="superadmin", password="testpass123", is_superuser=True)
+        p = Pictogram.objects.create(name="Global", image_url="https://example.com/g.png", organization=None)
+        headers = auth_header(client, "superadmin")
+        response = client.delete(f"/api/v1/pictograms/{p.id}", **headers)
+        assert response.status_code == 204
+        assert not Pictogram.objects.filter(id=p.id).exists()
