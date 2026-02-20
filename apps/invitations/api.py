@@ -6,22 +6,25 @@ Two routers:
                    -> mounted at /invitations
 """
 
-from django.shortcuts import get_object_or_404
 from ninja import Router
 from ninja.errors import HttpError
 from ninja.pagination import LimitOffsetPagination, paginate
 from ninja_jwt.authentication import JWTAuth
 
-from apps.invitations.models import Invitation
 from apps.invitations.schemas import InvitationCreateIn, InvitationOut
 from apps.invitations.services import InvitationService
-from apps.organizations.models import Organization
 from core.permissions import check_role
 from core.schemas import ErrorOut
 from core.throttling import InvitationSendRateThrottle
 
 org_router = Router(tags=["Invitations"])
 receiver_router = Router(tags=["Invitations"])
+
+
+def _check_role_or_raise(user, org_id: int, min_role: str) -> None:
+    allowed, msg = check_role(user, org_id, min_role=min_role)
+    if not allowed:
+        raise HttpError(403, msg)
 
 
 # ---------------------------------------------------------------------------
@@ -36,14 +39,10 @@ receiver_router = Router(tags=["Invitations"])
     throttle=[InvitationSendRateThrottle()],
 )
 def send_invitation(request, org_id: int, payload: InvitationCreateIn):
-    ok, msg = check_role(request.auth, org_id, min_role="admin")
-    if not ok:
-        raise HttpError(403, msg)
-
-    org = get_object_or_404(Organization, id=org_id)
+    _check_role_or_raise(request.auth, org_id, "admin")
     return 201, InvitationService.send(
-        organization=org,
-        sender=request.auth,
+        org_id=org_id,
+        sender_id=request.auth.id,
         receiver_email=payload.receiver_email,
     )
 
@@ -60,9 +59,7 @@ def send_invitation(request, org_id: int, payload: InvitationCreateIn):
 )
 @paginate(LimitOffsetPagination)
 def list_org_invitations(request, org_id: int):
-    ok, msg = check_role(request.auth, org_id, min_role="admin")
-    if not ok:
-        raise HttpError(403, msg)
+    _check_role_or_raise(request.auth, org_id, "admin")
     return InvitationService.list_for_org(org_id)
 
 
@@ -77,11 +74,11 @@ def list_org_invitations(request, org_id: int):
     auth=JWTAuth(),
 )
 def delete_invitation(request, org_id: int, invitation_id: int):
-    ok, msg = check_role(request.auth, org_id, min_role="admin")
-    if not ok:
-        raise HttpError(403, msg)
-    inv = get_object_or_404(Invitation, id=invitation_id, organization_id=org_id)
-    InvitationService.delete(inv)
+    _check_role_or_raise(request.auth, org_id, "admin")
+    inv = InvitationService.get_invitation(invitation_id)
+    if inv.organization_id != org_id:
+        raise HttpError(404, f"Invitation {invitation_id} not found.")
+    InvitationService.delete(invitation_id=invitation_id)
     return 204, None
 
 
@@ -111,15 +108,10 @@ def list_received_invitations(request):
     auth=JWTAuth(),
 )
 def accept_invitation(request, invitation_id: int):
-    inv = get_object_or_404(
-        Invitation.objects.select_related("organization", "sender", "receiver"),
-        id=invitation_id,
-    )
+    inv = InvitationService.get_invitation(invitation_id)
     if inv.receiver_id != request.auth.id:
         raise HttpError(403, "Only the receiver can respond.")
-    InvitationService.accept(inv)
-    inv.refresh_from_db()
-    return inv
+    return InvitationService.accept(invitation_id=invitation_id)
 
 
 # ---------------------------------------------------------------------------
@@ -133,12 +125,7 @@ def accept_invitation(request, invitation_id: int):
     auth=JWTAuth(),
 )
 def reject_invitation(request, invitation_id: int):
-    inv = get_object_or_404(
-        Invitation.objects.select_related("organization", "sender", "receiver"),
-        id=invitation_id,
-    )
+    inv = InvitationService.get_invitation(invitation_id)
     if inv.receiver_id != request.auth.id:
         raise HttpError(403, "Only the receiver can respond.")
-    InvitationService.reject(inv)
-    inv.refresh_from_db()
-    return inv
+    return InvitationService.reject(invitation_id=invitation_id)

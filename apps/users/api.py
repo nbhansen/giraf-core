@@ -38,26 +38,30 @@ def me(request):
 @router.put("/users/me", response={200: UserOut, 422: ErrorOut})
 def update_profile(request, payload: UserUpdateIn):
     """Update current user's profile."""
-    updated = UserService.update_user(request.auth, **payload.dict(exclude_unset=True))
+    updated = UserService.update_user(
+        user_id=request.auth.id, first_name=payload.first_name, last_name=payload.last_name, email=payload.email
+    )
     return 200, updated
 
 
 @router.put("/users/me/password", response={200: UserOut, 422: ErrorOut})
 def change_password(request, payload: PasswordChangeIn):
     """Change user's password."""
-    UserService.change_password(request.auth, payload.old_password, payload.new_password)
-    return 200, request.auth
+    updated = UserService.change_password(
+        user_id=request.auth.id, old_password=payload.old_password, new_password=payload.new_password
+    )
+    return 200, updated
 
 
 @router.delete("/users/me", response={204: None})
 def delete_account(request):
     """Delete the current user's account."""
-    UserService.delete_user(request.auth)
+    UserService.delete_user(user_id=request.auth.id)
     return 204, None
 
 
 @router.post("/users/me/profile-picture", response={200: UserOut, 422: ErrorOut})
 def upload_profile_picture(request, file: File[UploadedFile]):
     """Upload a profile picture."""
-    UserService.upload_profile_picture(request.auth, file)
-    return 200, request.auth
+    updated = UserService.upload_profile_picture(user_id=request.auth.id, file=file)
+    return 200, updated

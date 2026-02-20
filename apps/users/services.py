@@ -10,10 +10,17 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 
 from apps.users.models import User
-from core.exceptions import BusinessValidationError, ConflictError
+from core.exceptions import BusinessValidationError, ConflictError, ResourceNotFoundError
 
 
 class UserService:
+    @staticmethod
+    def _get_user_or_raise(user_id: int) -> User:
+        try:
+            return User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            raise ResourceNotFoundError(f"User {user_id} not found.")
+
     @staticmethod
     @transaction.atomic
     def register(
@@ -45,22 +52,29 @@ class UserService:
 
     @staticmethod
     @transaction.atomic
-    def update_user(user: User, **fields) -> User:
+    def update_user(
+        *, user_id: int, first_name: str | None = None, last_name: str | None = None, email: str | None = None
+    ) -> User:
         """Update user profile fields. Only updates non-None values."""
-        for key, value in fields.items():
-            if value is not None:
-                setattr(user, key, value)
+        user = UserService._get_user_or_raise(user_id)
+        if first_name is not None:
+            user.first_name = first_name
+        if last_name is not None:
+            user.last_name = last_name
+        if email is not None:
+            user.email = email
         user.save()
         return user
 
     @staticmethod
     @transaction.atomic
-    def change_password(user: User, old_password: str, new_password: str) -> User:
+    def change_password(*, user_id: int, old_password: str, new_password: str) -> User:
         """Change user password with validation.
 
         Raises:
             BusinessValidationError: If old password is incorrect or new password is weak.
         """
+        user = UserService._get_user_or_raise(user_id)
         if not user.check_password(old_password):
             raise BusinessValidationError("Old password is incorrect.")
 
@@ -76,18 +90,21 @@ class UserService:
 
     @staticmethod
     @transaction.atomic
-    def delete_user(user: User) -> None:
+    def delete_user(*, user_id: int) -> None:
         """Hard delete user account."""
+        user = UserService._get_user_or_raise(user_id)
         user.delete()
 
     @staticmethod
     @transaction.atomic
-    def upload_profile_picture(user: User, file) -> User:
+    def upload_profile_picture(*, user_id: int, file) -> User:
         """Upload and validate profile picture.
 
         Raises:
             BusinessValidationError: If file type or size is invalid.
         """
+        user = UserService._get_user_or_raise(user_id)
+
         # Validate file type
         mime_type, _ = mimetypes.guess_type(file.name)
         allowed_types = ["image/jpeg", "image/png", "image/webp"]

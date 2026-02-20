@@ -5,15 +5,26 @@ from django.db import IntegrityError, transaction
 
 from apps.invitations.models import Invitation, InvitationStatus
 from apps.organizations.models import Membership, OrgRole
-from core.exceptions import BadRequestError, DuplicateInvitationError, InvitationSendError
+from core.exceptions import BadRequestError, DuplicateInvitationError, InvitationSendError, ResourceNotFoundError
 
 User = get_user_model()
 
 
 class InvitationService:
     @staticmethod
+    def _get_invitation_or_raise(invitation_id: int) -> Invitation:
+        try:
+            return Invitation.objects.select_related("organization", "sender", "receiver").get(id=invitation_id)
+        except Invitation.DoesNotExist:
+            raise ResourceNotFoundError(f"Invitation {invitation_id} not found.")
+
+    @staticmethod
+    def get_invitation(invitation_id: int) -> Invitation:
+        return InvitationService._get_invitation_or_raise(invitation_id)
+
+    @staticmethod
     @transaction.atomic
-    def send(*, organization, sender, receiver_email: str) -> Invitation:
+    def send(*, org_id: int, sender_id: int, receiver_email: str) -> Invitation:
         """Create an invitation.
 
         Raises:
@@ -25,13 +36,13 @@ class InvitationService:
         except User.DoesNotExist:
             raise InvitationSendError("Cannot send invitation.")
 
-        if Membership.objects.filter(user=receiver, organization=organization).exists():
+        if Membership.objects.filter(user=receiver, organization_id=org_id).exists():
             raise InvitationSendError("Cannot send invitation.")
 
         try:
             inv = Invitation.objects.create(
-                organization=organization,
-                sender=sender,
+                organization_id=org_id,
+                sender_id=sender_id,
                 receiver=receiver,
             )
         except IntegrityError:
@@ -54,8 +65,9 @@ class InvitationService:
 
     @staticmethod
     @transaction.atomic
-    def accept(invitation: Invitation) -> None:
+    def accept(*, invitation_id: int) -> Invitation:
         """Accept invitation: create membership, update status."""
+        invitation = InvitationService._get_invitation_or_raise(invitation_id)
         if invitation.status != InvitationStatus.PENDING:
             raise BadRequestError("Invitation is no longer pending.")
         Membership.objects.get_or_create(
@@ -65,14 +77,18 @@ class InvitationService:
         )
         invitation.status = InvitationStatus.ACCEPTED
         invitation.save(update_fields=["status"])
+        return invitation
 
     @staticmethod
-    def reject(invitation: Invitation) -> None:
+    def reject(*, invitation_id: int) -> Invitation:
+        invitation = InvitationService._get_invitation_or_raise(invitation_id)
         if invitation.status != InvitationStatus.PENDING:
             raise BadRequestError("Invitation is no longer pending.")
         invitation.status = InvitationStatus.REJECTED
         invitation.save(update_fields=["status"])
+        return invitation
 
     @staticmethod
-    def delete(invitation: Invitation) -> None:
+    def delete(*, invitation_id: int) -> None:
+        invitation = InvitationService._get_invitation_or_raise(invitation_id)
         invitation.delete()
