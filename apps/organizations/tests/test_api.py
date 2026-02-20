@@ -186,6 +186,72 @@ class TestUpdateMemberRole:
 
 
 @pytest.mark.django_db
+class TestUpdateOrganization:
+    def test_owner_can_update(self, client, user):
+        headers = auth_header(client, "testuser")
+        org = Organization.objects.create(name="Old Name")
+        Membership.objects.create(user=user, organization=org, role=OrgRole.OWNER)
+
+        response = client.patch(
+            f"/api/v1/organizations/{org.id}",
+            data={"name": "New Name"},
+            content_type="application/json",
+            **headers,
+        )
+        assert response.status_code == 200
+        assert response.json()["name"] == "New Name"
+
+    def test_non_owner_cannot_update(self, client, user):
+        headers = auth_header(client, "testuser")
+        org = Organization.objects.create(name="Old Name")
+        Membership.objects.create(user=user, organization=org, role=OrgRole.ADMIN)
+
+        response = client.patch(
+            f"/api/v1/organizations/{org.id}",
+            data={"name": "New Name"},
+            content_type="application/json",
+            **headers,
+        )
+        assert response.status_code == 403
+
+
+@pytest.mark.django_db
+class TestDeleteOrganization:
+    def test_owner_can_delete(self, client, user):
+        headers = auth_header(client, "testuser")
+        org = Organization.objects.create(name="Doomed School")
+        Membership.objects.create(user=user, organization=org, role=OrgRole.OWNER)
+
+        response = client.delete(f"/api/v1/organizations/{org.id}", **headers)
+        assert response.status_code == 204
+        assert not Organization.objects.filter(id=org.id).exists()
+
+    def test_non_owner_cannot_delete(self, client, user):
+        headers = auth_header(client, "testuser")
+        org = Organization.objects.create(name="Safe School")
+        Membership.objects.create(user=user, organization=org, role=OrgRole.ADMIN)
+
+        response = client.delete(f"/api/v1/organizations/{org.id}", **headers)
+        assert response.status_code == 403
+
+
+@pytest.mark.django_db
+class TestUpdateMemberRoleErrors:
+    def test_update_role_nonexistent_member_returns_404(self, client, user, other_user):
+        headers = auth_header(client, "testuser")
+        org = Organization.objects.create(name="Test School")
+        Membership.objects.create(user=user, organization=org, role=OrgRole.OWNER)
+
+        response = client.patch(
+            f"/api/v1/organizations/{org.id}/members/99999",
+            data={"role": "admin"},
+            content_type="application/json",
+            **headers,
+        )
+        assert response.status_code == 404
+
+
+@pytest.mark.django_db
 class TestRemoveMember:
     def test_owner_can_remove_member(self, client, user, other_user):
         headers = auth_header(client, "testuser")
@@ -234,6 +300,17 @@ class TestRemoveMember:
             **headers,
         )
         assert response.status_code == 400
+
+    def test_remove_nonexistent_member_returns_404(self, client, user):
+        headers = auth_header(client, "testuser")
+        org = Organization.objects.create(name="Test School")
+        Membership.objects.create(user=user, organization=org, role=OrgRole.OWNER)
+
+        response = client.delete(
+            f"/api/v1/organizations/{org.id}/members/99999",
+            **headers,
+        )
+        assert response.status_code == 404
 
     def test_can_remove_owner_when_multiple_owners(self, client, user, other_user):
         headers = auth_header(client, "testuser")

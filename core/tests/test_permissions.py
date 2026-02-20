@@ -83,3 +83,28 @@ class TestCheckRole:
         for role in [OrgRole.MEMBER, OrgRole.ADMIN, OrgRole.OWNER]:
             allowed, _ = check_role(user, org.id, min_role=role)
             assert allowed is False
+
+
+@pytest.mark.django_db
+class TestCheckRoleOrRaise:
+    def test_passes_when_authorized(self):
+        from core.permissions import check_role_or_raise
+
+        user = UserFactory()
+        org = Organization.objects.create(name="Test School")
+        Membership.objects.create(user=user, organization=org, role=OrgRole.OWNER)
+
+        # Should not raise
+        check_role_or_raise(user, org.id, OrgRole.MEMBER)
+
+    def test_raises_403_when_unauthorized(self):
+        from ninja.errors import HttpError
+
+        from core.permissions import check_role_or_raise
+
+        user = UserFactory()
+        org = Organization.objects.create(name="Test School")
+
+        with pytest.raises(HttpError) as exc_info:
+            check_role_or_raise(user, org.id, OrgRole.MEMBER)
+        assert exc_info.value.status_code == 403

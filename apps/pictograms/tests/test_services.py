@@ -43,3 +43,24 @@ class TestPictogramServiceUpload:
         p = PictogramService.upload_pictogram(name="Valid", image=image)
         assert p.pk is not None
         assert p.name == "Valid"
+
+
+@pytest.mark.django_db
+class TestPictogramServiceErrors:
+    def test_get_pictogram_not_found(self):
+        from core.exceptions import ResourceNotFoundError
+
+        with pytest.raises(ResourceNotFoundError):
+            PictogramService.get_pictogram(99999)
+
+    def test_list_pictograms_global_only(self):
+        from apps.organizations.models import Organization
+
+        org = Organization.objects.create(name="Test School")
+        PictogramService.create_pictogram(name="Global", image_url="http://g.png")
+        PictogramService.create_pictogram(name="OrgOnly", image_url="http://o.png", organization_id=org.id)
+
+        results = list(PictogramService.list_pictograms(None))
+        names = [p.name for p in results]
+        assert "Global" in names
+        assert "OrgOnly" not in names

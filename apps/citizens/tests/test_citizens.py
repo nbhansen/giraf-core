@@ -156,3 +156,36 @@ class TestDeleteCitizen:
         headers = auth_header(client, "member")
         response = client.delete(f"/api/v1/citizens/{citizen.id}", **headers)
         assert response.status_code == 403
+
+    def test_delete_nonexistent_citizen_returns_404(self, client, org, owner):
+        headers = auth_header(client, "owner")
+        response = client.delete("/api/v1/citizens/99999", **headers)
+        assert response.status_code == 404
+
+
+@pytest.mark.django_db
+class TestCitizenNotFound:
+    def test_get_nonexistent_citizen_returns_404(self, client, org, member):
+        headers = auth_header(client, "member")
+        response = client.get("/api/v1/citizens/99999", **headers)
+        assert response.status_code == 404
+
+
+@pytest.mark.django_db
+class TestUpdateCitizenBothFields:
+    def test_update_citizen_both_fields(self, client, org, member):
+        from apps.citizens.models import Citizen
+
+        citizen = Citizen.objects.create(first_name="Alice", last_name="A", organization=org)
+
+        headers = auth_header(client, "member")
+        response = client.patch(
+            f"/api/v1/citizens/{citizen.id}",
+            data={"first_name": "Bob", "last_name": "Z"},
+            content_type="application/json",
+            **headers,
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["first_name"] == "Bob"
+        assert data["last_name"] == "Z"
